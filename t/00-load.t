@@ -3,8 +3,8 @@
 use Test::More tests => 1;
 
 BEGIN {
-    use_ok( 'NIST::NVD::Store::BFDB' ) || print "Bail out!
+    use_ok( 'NIST::NVD::Store::SQLite3' ) || print "Bail out!
 ";
 }
 
-diag( "Testing NIST::NVD::Store::BFDB $NIST::NVD::Store::BFDB::VERSION, Perl $], $^X" );
+diag( "Testing NIST::NVD::Store::SQLite3 $NIST::NVD::Store::SQLite3::VERSION, Perl $], $^X" );

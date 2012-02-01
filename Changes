@@ -1,5 +1,4 @@
-Revision history for NIST-NVD-Store-BFDB
+Revision history for NIST-NVD-Store-SQLite3
 
-0.01    Date/time
-        First version, released on an unsuspecting world.
-
+0.01    Tue Jan 31 21:30:18 PST 2012 cjac@f5.com
+        Initial go at it

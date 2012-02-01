@@ -1,16 +1,6 @@
-NIST-NVD-Store-BFDB
+NIST-NVD-Store-SQLite3
 
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
-
-A README file is required for CPAN modules since CPAN extracts the README
-file from a module distribution so that people browsing the archive
-can use it to get an idea of the module's uses. It is usually a good idea
-to provide version information here so that people can decide whether
-fixes for the module are worth downloading.
-
+SQLite3 storage back-end for the NIST-NVD feed data
 
 INSTALLATION
 
@@ -26,26 +16,26 @@ SUPPORT AND DOCUMENTATION
 After installing, you can find documentation for this module with the
 perldoc command.
 
-    perldoc NIST::NVD::Store::BFDB
+    perldoc NIST::NVD::Store::SQLite3
 
 You can also look for information at:
 
     RT, CPAN's request tracker
-        http://rt.cpan.org/NoAuth/Bugs.html?Dist=NIST-NVD-Store-BFDB
+        http://rt.cpan.org/NoAuth/Bugs.html?Dist=NIST-NVD-Store-SQLite3
 
     AnnoCPAN, Annotated CPAN documentation
-        http://annocpan.org/dist/NIST-NVD-Store-BFDB
+        http://annocpan.org/dist/NIST-NVD-Store-SQLite3
 
     CPAN Ratings
-        http://cpanratings.perl.org/d/NIST-NVD-Store-BFDB
+        http://cpanratings.perl.org/d/NIST-NVD-Store-SQLite3
 
     Search CPAN
-        http://search.cpan.org/dist/NIST-NVD-Store-BFDB/
+        http://search.cpan.org/dist/NIST-NVD-Store-SQLite3/
 
 
 LICENSE AND COPYRIGHT
 
 Copyright (C) 2012 C.J. Adams-Collier
 
-This program is released under the following license: f5 internal
+This program is released under the following license: perl
 

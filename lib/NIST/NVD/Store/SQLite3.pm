@@ -1,11 +1,11 @@
-package NIST::NVD::Store::BFDB;
+package NIST::NVD::Store::SQLite3;
 
 use warnings;
 use strict;
 
 =head1 NAME
 
-NIST::NVD::Store::BFDB - The great new NIST::NVD::Store::BFDB!
+NIST::NVD::Store::SQLite3 - The great new NIST::NVD::Store::SQLite3!
 
 =head1 VERSION
 
@@ -22,9 +22,9 @@ Quick summary of what the module does.
 
 Perhaps a little code snippet.
 
-    use NIST::NVD::Store::BFDB;
+    use NIST::NVD::Store::SQLite3;
 
-    my $foo = NIST::NVD::Store::BFDB->new();
+    my $foo = NIST::NVD::Store::SQLite3->new();
     ...
 
 =head1 EXPORT
@@ -54,8 +54,8 @@ C.J. Adams-Collier, C<< <cjac at f5.com> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-nist-nvd-store-bfdb at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=NIST-NVD-Store-BFDB>.  I will be notified, and then you'll
+Please report any bugs or feature requests to C<bug-nist-nvd-store-sqlite3 at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=NIST-NVD-Store-SQLite3>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 
@@ -65,7 +65,7 @@ automatically be notified of progress on your bug as I make changes.
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc NIST::NVD::Store::BFDB
+    perldoc NIST::NVD::Store::SQLite3
 
 
 You can also look for information at:
@@ -74,19 +74,19 @@ You can also look for information at:
 
 =item * RT: CPAN's request tracker
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=NIST-NVD-Store-BFDB>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=NIST-NVD-Store-SQLite3>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/NIST-NVD-Store-BFDB>
+L<http://annocpan.org/dist/NIST-NVD-Store-SQLite3>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/NIST-NVD-Store-BFDB>
+L<http://cpanratings.perl.org/d/NIST-NVD-Store-SQLite3>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/NIST-NVD-Store-BFDB/>
+L<http://search.cpan.org/dist/NIST-NVD-Store-SQLite3/>
 
 =back
 
@@ -103,4 +103,4 @@ This program is released under the following license: f5 internal
 
 =cut
 
-1; # End of NIST::NVD::Store::BFDB
+1; # End of NIST::NVD::Store::SQLite3

@@ -2,7 +2,7 @@ Changes
 MANIFEST
 Makefile.PL
 README
-lib/NIST/NVD/Store/BFDB.pm
+lib/NIST/NVD/Store/SQLite3.pm
 t/00-load.t
 t/manifest.t
 t/pod-coverage.t
