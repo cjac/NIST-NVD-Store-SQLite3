@@ -1,7 +1,14 @@
 package NIST::NVD::Store::SQLite3;
 
+use NIST::NVD::Store::Base;
+use base qw{NIST::NVD::Store::Base};
+
 use warnings;
 use strict;
+
+use DBI;
+
+
 
 =head1 NAME
 
@@ -15,7 +22,6 @@ Version 0.01
 
 our $VERSION = '0.01';
 
-
 =head1 SYNOPSIS
 
 Quick summary of what the module does.
@@ -24,28 +30,122 @@ Perhaps a little code snippet.
 
     use NIST::NVD::Store::SQLite3;
 
-    my $foo = NIST::NVD::Store::SQLite3->new();
+    my $NVD_Storage_SQLite3 = NIST::NVD::Store::SQLite3->new();
     ...
-
-=head1 EXPORT
-
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
 
 =head1 SUBROUTINES/METHODS
 
-=head2 function1
+=head2 new
+
+    my $NVD_Storage_SQLite3 = NIST::NVD::Store::SQLite3->new(
+        store     => 'SQLite3',
+        database  => '/path/to/database.sqlite',
+    );
 
 =cut
 
-sub function1 {
+sub new {
+    my ( $class, %args ) = @_;
+    $class = ref $class || $class;
+
+    my $self = bless { vuln_software => {} }, $class;
+
+    $self->{sqlite} = $self->_connect_db( database => $args{database} );
+
+    my $fail = 0;
+
+    return if $fail;
+
+		return $self;
 }
 
-=head2 function2
+my %query = (
+    cpe_create => qq{
+CREATE TABLE IF NOT EXISTS cpe (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  urn     VARCHAR(64),
+
+  part     CHAR,
+  vendor   VARCHAR(16),
+  product  VARCHAR(16),
+  version  VARCHAR(16),
+  updt     VARCHAR(16),
+  edition  VARCHAR(16),
+  language VARCHAR(4)
+)},
+    cve_create => qq{
+CREATE TABLE IF NOT EXISTS cve (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  cve_id  VARCHAR(16),
+  cve_dump BLOB
+)},
+    cpe_cve_map_create => qq{
+CREATE TABLE IF NOT EXISTS cpe_cve_map (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  cpe_id INTEGER,
+  cve_id INTEGER
+)},
+
+);
+
+my %sth = ();
+
+sub _connect_db {
+    my ( $self, %args ) = @_;
+
+    my $dbh = DBI->connect( "dbi:SQLite:dbname=$args{database}", "", "" );
+
+		foreach my $statement ( qw(cpe_create cve_create cpe_cve_map_create) ){
+
+			my $query = $query{$statement};
+
+			$sth{$statement} //= $dbh->prepare($query);
+			$sth{$statement}->execute();
+		}
+
+    return $dbh;
+}
+
+=head2 get_cve_for_cpe
 
 =cut
 
-sub function2 {
+sub get_cve_for_cpe {
+	my( $self, $cpe ) = @_;
+
+	$sth{cve_for_cpe_select} //= $self->{sqlite}->prepare($query{cve_for_cpe_select});
+
+	$sth{cve_for_cpe_select}->execute( $cpe );
+
+	
+}
+
+=head2 get_cve
+
+
+=cut
+
+sub get_cve {
+
+}
+
+=head2 put_idx_cpe
+
+
+=cut
+
+sub put_idx_cpe {
+
+}
+
+=head2 put_nvd_entries
+
+
+=cut
+
+sub put_nvd_entries {
+
 }
 
 =head1 AUTHOR
@@ -103,4 +203,4 @@ This program is released under the following license: f5 internal
 
 =cut
 
-1; # End of NIST::NVD::Store::SQLite3
+1;    # End of NIST::NVD::Store::SQLite3
