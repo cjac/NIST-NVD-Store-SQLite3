@@ -2,9 +2,10 @@
 
 use strict;
 use warnings;
-use Test::More tests => 12;
+use Test::More tests => 14;
 use Test::File;
 use File::MMagic;
+use File::LibMagic;
 use FindBin qw($Bin);
 use NIST::NVD::Query;
 
@@ -15,17 +16,17 @@ use NIST::NVD::Query;
   "$test_dir/../blib/script/convert-nvdcve" =~ m:^(.*?/convert-nvdcve$):;
 ( my $source_file ) =
   "$data_dir/nvdcve-2.0-test.xml" =~ /^(.*nvdcve-2.0-test.xml)$/;
-( my $db_file )      = "$data_dir/nvdcve-2.0.db"         =~ /^(.*db)$/;
-( my $cpe_idx_file ) = "$data_dir/nvdcve-2.0.idx_cpe.db" =~ /^(.*db)$/;
+( my $db_file ) = "$data_dir/nvdcve-2.0.db" =~ /^(.*db)$/;
 
 undef $ENV{PATH};
 undef $ENV{ENV};
 undef $ENV{CDPATH};
 
-unlink($db_file)      if -f $db_file;
-unlink($cpe_idx_file) if -f $cpe_idx_file;
+unlink($db_file) if -f $db_file;
 
 chdir($data_dir);
+
+diag("$convert_script $source_file");
 
 system("$convert_script $source_file");
 
@@ -69,8 +70,6 @@ $res = $mm->checktype_contents($data);
 is( $type, 'application/octet-stream',
     "file contents indicate correct type: [$type]" );
 
-use File::LibMagic;
-
 my $flm = File::LibMagic->new();
 
 $type = $flm->describe_filename($db_file);
@@ -82,12 +81,8 @@ is(
 
 my $q;
 
-$q = eval {
-    NIST::NVD::Query->new(
-        store    => 'SQLite3',
-        database => $db_file,
-    );
-};
+$q =
+  eval { NIST::NVD::Query->new( store => 'SQLite3', database => $db_file, ); };
 ok( !$@, "no error" ) or diag $@;
 
 is( ref $q, 'NIST::NVD::Query',

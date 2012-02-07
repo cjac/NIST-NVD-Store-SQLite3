@@ -11,7 +11,7 @@ use NIST::NVD::Update;
 
 my $filename = $ARGV[0] || 'nvdcve-2.0-recent.xml';
 
-my $db_file      = 'nvdcve-2.0.db';
+my $db_file = 'nvdcve-2.0.db';
 
 my $NVD_Updater = NIST::NVD::Update->new(
     store    => 'SQLite3',
@@ -27,6 +27,8 @@ my $nvdcve_fd;
 open( $nvdcve_fd, q{<}, $filename )
   or die qq{couldn't open "$filename": $!};
 
+my $NVD_Entry_HASH = {};
+
 my $header;
 my $entry_body;
 my $footer = '</nvd>';
@@ -34,8 +36,9 @@ my $footer = '</nvd>';
 my $content;
 
 my $iter = 0;
-
+$|++;
 while ( my $line = <$nvdcve_fd> ) {
+
     if ( $line =~ /(^.*?)<entry/ ) {
         my $tail = $1;
         $content .= $tail;
@@ -43,7 +46,7 @@ while ( my $line = <$nvdcve_fd> ) {
         if ($header) {
             $entry_body = $content;
             my $xml_string = $header . $entry_body . $footer;
-
+            print(".");
             process_nvd($xml_string);
             $iter++;
         }
@@ -62,9 +65,21 @@ while ( my $line = <$nvdcve_fd> ) {
 
 print " $iter entries\n";
 
+print "Writing CPE URNs to disk...";
+
+$NVD_Updater->put_cpe([ keys %vuln_software ]);
+
+print "done.\n";
+
 print "Writing CPE index to disk...";
 
 $NVD_Updater->put_idx_cpe( \%vuln_software );
+
+print "done.\n";
+
+print "Writing NVD entries to disk...";
+
+$NVD_Updater->put_nvd_entries($NVD_Entry_HASH);
 
 print " Done.\n";
 
@@ -77,8 +92,6 @@ sub process_nvd {
 
     my @nvd_nodelist =
       grep { $_->getName && $_->getName eq 'nvd' } $nodeset->get_nodelist;
-
-    my $NVD_Entry_HASH = {};
 
     foreach my $nvd (@nvd_nodelist) {
         my @entry_nodelist =
@@ -95,11 +108,9 @@ sub process_nvd {
                 push( @{ $vuln_software{$cpe_urn} }, $cve_id );
             }
 
-						$NVD_Entry_HASH->{$cve_id} = $entry
+            $NVD_Entry_HASH->{$cve_id} = $entry;
         }
     }
-
-    $NVD_Updater->put_nvd_entries( $NVD_Entry_HASH );
 
     #  $xp->dispose();
 }
