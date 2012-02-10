@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 42;
+use Test::More tests => 10;
 use FindBin qw($Bin);
 
 ( my $test_dir ) = $Bin =~ m:^(.*?/t)$:;

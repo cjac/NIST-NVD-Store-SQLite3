@@ -2,6 +2,10 @@ package NIST::NVD::Store::SQLite3;
 
 use NIST::NVD::Store::Base;
 use base qw{NIST::NVD::Store::Base};
+use Carp;
+
+use IO::Uncompress::Bunzip2 qw(bunzip2 $Bunzip2Error);
+use IO::Compress::Bzip2 qw(bzip2 $Bzip2Error);
 
 use warnings;
 use strict;
@@ -26,7 +30,7 @@ my %query = (
     cpe_create => qq{
 CREATE TABLE IF NOT EXISTS cpe (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
-  urn     VARCHAR(64),
+  urn     VARCHAR(64) CONSTRAINT uniq_urn UNIQUE ON CONFLICT FAIL,
 
   part     CHAR,
   vendor   VARCHAR(16),
@@ -39,7 +43,7 @@ CREATE TABLE IF NOT EXISTS cpe (
     cve_create => qq{
 CREATE TABLE IF NOT EXISTS cve (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
-  cve_id  VARCHAR(16),
+  cve_id  VARCHAR(16) CONSTRAINT uniq_cve_id UNIQUE ON CONFLICT FAIL,
   cve_dump BLOB
 )},
     cpe_cve_map_create => qq{
@@ -47,22 +51,25 @@ CREATE TABLE IF NOT EXISTS cpe_cve_map (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
 
   cpe_id INTEGER,
-  cve_id INTEGER
+  cve_id INTEGER,
+  CONSTRAINT uniq_cpe_cve UNIQUE ( cpe_id, cve_id ) ON CONFLICT FAIL
 )},
 
     cve_for_cpe_select => qq{
-SELECT cpe.urn,cve.cve_id
-FROM cve,cpe,cpe_cve_map
-WHERE cpe.urn=?
-  and cpe.id=cpe_cve_map.cpe_id
-  and cpe_cve_map.cve_id=cve.id
+SELECT cve.cve_id
+  FROM cpe_cve_map,cve
+ WHERE cpe_cve_map.cpe_id=?
+   AND cpe_cve_map.cve_id=cve.id
+ORDER BY cve.cve_id
 },
-
     get_cpe_id_select => qq{
 SELECT id FROM cpe WHERE cpe.urn=?
 },
     get_cve_id_select => qq{
 SELECT id FROM cve WHERE cve.cve_id=?
+},
+    get_cve_select => qq{
+SELECT cve_dump FROM cve WHERE cve.cve_id=?
 },
     put_idx_cpe_insert => qq{
 INSERT INTO cpe_cve_map (cpe_id,cve_id)
@@ -88,14 +95,9 @@ my %sth = ();
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+$q =
+  eval { NIST::NVD::Query->new( store => 'SQLite3', database => $db_file, ); };
 
-Perhaps a little code snippet.
-
-    use NIST::NVD::Store::SQLite3;
-
-    my $NVD_Storage_SQLite3 = NIST::NVD::Store::SQLite3->new();
-    ...
 
 =head1 SUBROUTINES/METHODS
 
@@ -118,7 +120,8 @@ sub new {
 
     foreach my $statement (
         qw( put_cpe_insert cve_for_cpe_select put_idx_cpe_insert
-        put_cve_insert put_cve_update get_cpe_id_select get_cve_id_select )
+        put_cve_insert put_cve_update get_cpe_id_select
+        get_cve_id_select get_cve_select )
       )
     {
         $sth{$statement} = $self->{sqlite}->prepare( $query{$statement} );
@@ -150,25 +153,31 @@ sub _connect_db {
 
 =cut
 
-sub get_cve_for_cpe {
-    my ( $self, $cpe ) = @_;
+my $cpe_urn_re = qr{^(cpe:/.(:?:[^:]+){2,6})$};
 
-    $sth{cve_for_cpe_select}->execute($cpe);
+sub get_cve_for_cpe {
+    my ( $self, %args ) = @_;
+
+    ( my $cpe ) = ( $args{cpe} =~ $cpe_urn_re );
+
+    my $cpe_pkey_id;
+    if ( $cpe =~ /^cpe/ ) {
+        $cpe_pkey_id = $self->_get_cpe_id($cpe);
+    }
+    else {
+        $cpe_pkey_id = $cpe;
+    }
+
+    $sth{cve_for_cpe_select}->execute($cpe_pkey_id);
 
     my $cve_id = [];
 
     while ( my $row = $sth{cve_for_cpe_select}->fetchrow_hashref() ) {
-
-        #        print STDERR ( join( ",", keys %$row ), "\n" );
-        push( @$cve_id, $row->{'cve.cve_id'} );
+        push( @$cve_id, $row->{'cve_id'} );
     }
 
     return $cve_id;
 }
-
-=head2 _get_cve_id
-
-=cut
 
 sub _get_cve_id {
     my ( $self, $cve_id ) = @_;
@@ -178,11 +187,16 @@ sub _get_cve_id {
 
     $sth{get_cve_id_select}->execute($cve_id);
 
+    #    print STDERR "getting pkey for cve id [$cve_id]\n";
+
     # TODO: Assert that this query returns zero or one result
     my $rows = 0;
     while ( my $row = $sth{get_cve_id_select}->fetchrow_hashref() ) {
-        print STDERR "multiple results for value intended to be unique\n"
-          if ( $rows++ );
+        print STDERR
+"multiple ($rows) results for value intended to be unique.  cve_id: [$cve_id]\n"
+          if ( $rows != 0 );
+
+        $rows++;
 
         $self->{cve_map}->{$cve_id} = $row->{id};
     }
@@ -206,8 +220,11 @@ sub _get_cpe_id {
     $sth{get_cpe_id_select}->execute($cpe_urn);
 
     # TODO: Assert that this query only returns one result
+    my $rows = 0;
     while ( my $row = $sth{get_cpe_id_select}->fetchrow_hashref() ) {
-        print STDERR "multiple results for value intended to be unique\n";
+        print STDERR
+"multiple ($rows) results for value intended to be unique.  cpe_urn: [$cpe_urn]\n"
+          if ( $rows != 0 );
         $self->{cpe_map}->{$cpe_urn} = $row->{id};
     }
 
@@ -220,7 +237,21 @@ sub _get_cpe_id {
 =cut
 
 sub get_cve {
+    my ( $self, %args ) = @_;
 
+		$sth{get_cve_select}->execute( $args{cve_id} );
+
+		my $row = $sth{get_cve_select}->fetchrow_hashref();
+
+    my $frozen = $row->{cve_dump};
+
+    my $entry = eval { thaw $frozen };
+    if (@$) {
+        carp "Storable::thaw had a major malfunction.";
+        return;
+    }
+
+    return $entry;
 }
 
 =head2 put_idx_cpe
@@ -234,7 +265,11 @@ sub put_idx_cpe {
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
 
     while ( my ( $cpe_urn, $cve_id ) = ( each %$vuln_software ) ) {
-        $sth{put_idx_cpe_insert}->execute( $cpe_urn, $cve_id );
+        my $cpe_pkey_id = $self->_get_cpe_id($cpe_urn);
+        my (@cve_pkey_id) = map { $self->_get_cve_id($_) } @$cve_id;
+        foreach my $cve_pkey_id (@cve_pkey_id) {
+            $sth{put_idx_cpe_insert}->execute( $cpe_pkey_id, $cve_pkey_id );
+        }
     }
 
     $self->{sqlite}->commit();
@@ -316,7 +351,7 @@ sub put_nvd_entries {
             $sth = $sth{put_cve_insert};
         }
 
-        $sth->execute( $entry, $cve_id );
+        $sth->execute( $frozen, $cve_id );
         print STDERR ".";
     }
 
@@ -371,9 +406,9 @@ L<http://search.cpan.org/dist/NIST-NVD-Store-SQLite3/>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2012 C.J. Adams-Collier.
+Copyright 2012 F5 Networks, Inc.
 
-This program is released under the following license: f5 internal
+This program is released under the following license: perl
 
 
 =cut

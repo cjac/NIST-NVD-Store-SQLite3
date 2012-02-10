@@ -11,10 +11,14 @@ use NIST::NVD::Update;
 
 my $filename = $ARGV[0] || 'nvdcve-2.0-recent.xml';
 
+my $store    = $ARGV[1] || 'DB_File';
+
+print STDERR "using store [$store]\n";
+
 my $db_file = 'nvdcve-2.0.db';
 
 my $NVD_Updater = NIST::NVD::Update->new(
-    store    => 'SQLite3',
+    store    => $store,
     database => $db_file,
 );
 
@@ -69,19 +73,19 @@ print "Writing CPE URNs to disk...";
 
 $NVD_Updater->put_cpe([ keys %vuln_software ]);
 
-print "done.\n";
-
-print "Writing CPE index to disk...";
-
-$NVD_Updater->put_idx_cpe( \%vuln_software );
-
-print "done.\n";
+print "Done.\n";
 
 print "Writing NVD entries to disk...";
 
 $NVD_Updater->put_nvd_entries($NVD_Entry_HASH);
 
 print " Done.\n";
+
+print "Writing CPE index to disk...";
+
+$NVD_Updater->put_idx_cpe( \%vuln_software );
+
+print "Done.\n";
 
 sub process_nvd {
     my ($xml) = @_;
