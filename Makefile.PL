@@ -11,7 +11,7 @@ WriteMakefile(
     ABSTRACT_FROM => 'lib/NIST/NVD/Store/SQLite3.pm',
     LICENSE       => 'perl',
     PL_FILES      => {},
-    PREREQ_PM     => { 'Test::More' => 0, },
+    PREREQ_PM     => { 'Test::More' => 0, 'Test::File' => 0, },
     dist          => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'NIST-NVD-Store-SQLite3-*' },
 );
