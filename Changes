@@ -2,3 +2,8 @@ Revision history for NIST-NVD-Store-SQLite3
 
 0.01    Tue Jan 31 21:30:18 PST 2012 cjac@f5.com
         Initial go at it
+
+0.02		missed a dependency.  oops.
+
+0.03		indexing CWEs and publishing an interface to query them
+

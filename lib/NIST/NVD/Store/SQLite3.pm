@@ -20,11 +20,11 @@ NIST::NVD::Store::SQLite3 - SQLite3 store for NIST::NVD
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 my %query = (
     cpe_create => qq{
@@ -45,6 +45,12 @@ CREATE TABLE IF NOT EXISTS cve (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
   cve_id  VARCHAR(16) CONSTRAINT uniq_cve_id UNIQUE ON CONFLICT FAIL,
   cve_dump BLOB
+)},
+						 cwe_create => qq{
+CREATE TABLE IF NOT EXISTS cwe (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  cwe_id  VARCHAR(16) CONSTRAINT uniq_cwe_id UNIQUE ON CONFLICT FAIL,
+  cwe_dump BLOB
 )},
     cpe_cve_map_create => qq{
 CREATE TABLE IF NOT EXISTS cpe_cve_map (

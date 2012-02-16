@@ -32,9 +32,10 @@ my $convert_script =
 
 ok( -f $convert_script, '$convert_script is a file' );
 
-my $source_file = File::Spec->catfile( $data_dir, 'nvdcve-2.0-test.xml' );
+my $nvd_source_file = File::Spec->catfile( $data_dir, 'nvdcve-2.0-test.xml' );
+my $cwe_source_file = File::Spec->catfile( $data_dir, 'cwec_v2.1.xml' );
 
-ok( -f $source_file, '$source_file is a file' );
+ok( -f $nvd_source_file, '$nvd_source_file is a file' );
 
 my $db_file = File::Spec->catfile( $data_dir, 'nvdcve-2.0.db' );
 
@@ -52,7 +53,7 @@ chdir($data_dir);
 
 $ENV{PERL5LIB} = File::Spec->catfile( $dist_dir, 'blib', 'lib' );
 
-my $output = `$convert_script $source_file SQLite3 2>&1`;
+my $output = `$convert_script --nvd $nvd_source_file --cwe $cwe_source_file --store SQLite3 2>&1`;
 
 is( $?, 0, 'conversion script returned cleanly' ) or diag $output;
 file_exists_ok( $db_file, 'database file exists' );

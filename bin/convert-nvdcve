@@ -7,11 +7,22 @@ use Storable qw(nfreeze thaw);
 use IO::Compress::Bzip2 qw(bzip2 $Bzip2Error);
 use IO::Uncompress::Bunzip2 qw(bunzip2 $Bunzip2Error);
 
+use Getopt::Long;
+
+my ( $nvd, $store, $cwe );
+
+my $result = GetOptions(
+    "nvd=s"   => \$nvd,
+    "cwe=s"   => \$cwe,
+    "store=s" => \$store,
+);
+
 use NIST::NVD::Update;
 
-my $filename = $ARGV[0] || 'nvdcve-2.0-recent.xml';
+$nvd ||= 'nvdcve-2.0-recent.xml';
+$cwe ||= 'cwec_v2.1.xml';
 
-my $store    = $ARGV[1] || 'DB_File';
+$store ||= 'DB_File';
 
 print STDERR "using store [$store]\n";
 
@@ -23,61 +34,27 @@ my $NVD_Updater = NIST::NVD::Update->new(
 );
 
 my %vuln_software;
+my %weaknesses;
 
-print("processing file: $filename...");
-
-my $nvdcve_fd;
-
-open( $nvdcve_fd, q{<}, $filename )
-  or die qq{couldn't open "$filename": $!};
-
-my $NVD_Entry_HASH = {};
-
-my $header;
-my $entry_body;
-my $footer = '</nvd>';
-
-my $content;
-
-my $iter = 0;
 $|++;
-while ( my $line = <$nvdcve_fd> ) {
 
-    if ( $line =~ /(^.*?)<entry/ ) {
-        my $tail = $1;
-        $content .= $tail;
+print("reading NVDs from file: $nvd...");
 
-        if ($header) {
-            $entry_body = $content;
-            my $xml_string = $header . $entry_body . $footer;
-            print(".");
-            process_nvd($xml_string);
-            $iter++;
-        }
-        else {
-            $header = $content;
-        }
+my $nvd_entries = process_nvd_file($nvd);
 
-        $line =~ s/^$tail//;
-        $content = $line;
+printf( "read \%i entries\n", int keys $nvd_entries );
 
-    }
-    else {
-        $content .= $line;
-    }
-}
-
-print " $iter entries\n";
+my $cwe_data = process_cwe_file($cwe);
 
 print "Writing CPE URNs to disk...";
 
-$NVD_Updater->put_cpe([ keys %vuln_software ]);
+$NVD_Updater->put_cpe( [ keys %vuln_software ] );
 
 print "Done.\n";
 
 print "Writing NVD entries to disk...";
 
-$NVD_Updater->put_nvd_entries($NVD_Entry_HASH);
+$NVD_Updater->put_nvd_entries($nvd_entries);
 
 print " Done.\n";
 
@@ -86,6 +63,60 @@ print "Writing CPE index to disk...";
 $NVD_Updater->put_idx_cpe( \%vuln_software );
 
 print "Done.\n";
+
+sub process_nvd_file {
+
+    my ($filename) = @_;
+
+    my $NVD_Entry_HASH = {};
+
+    my $content;
+
+    my $iter = 0;
+
+    my $header;
+    my $entry_body;
+    my $footer = '</nvd>';
+
+    my $nvdcve_fd;
+
+    open( $nvdcve_fd, q{<}, $filename )
+      or die qq{couldn't open "$filename": $!};
+
+    while ( my $line = <$nvdcve_fd> ) {
+
+        if ( $line =~ /(^.*?)<entry/ ) {
+            my $tail = $1;
+            $content .= $tail;
+
+            if ($header) {
+                $entry_body = $content;
+                my $xml_string = $header . $entry_body . $footer;
+                print(".");
+                my %entry = process_nvd($xml_string);
+
+                while ( my ( $cve_id, $entry ) = each %entry ) {
+                    $NVD_Entry_HASH->{$cve_id} = $entry;
+                }
+
+                $iter++;
+            }
+            else {
+                $header = $content;
+            }
+
+            $line =~ s/^$tail//;
+            $content = $line;
+
+        }
+        else {
+            $content .= $line;
+        }
+    }
+
+    return $NVD_Entry_HASH;
+
+}
 
 sub process_nvd {
     my ($xml) = @_;
@@ -96,6 +127,8 @@ sub process_nvd {
 
     my @nvd_nodelist =
       grep { $_->getName && $_->getName eq 'nvd' } $nodeset->get_nodelist;
+
+    my %entry = ();
 
     foreach my $nvd (@nvd_nodelist) {
         my @entry_nodelist =
@@ -112,9 +145,15 @@ sub process_nvd {
                 push( @{ $vuln_software{$cpe_urn} }, $cve_id );
             }
 
-            $NVD_Entry_HASH->{$cve_id} = $entry;
+            foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
+                push( @{ $weaknesses{$cve_id} }, $cwe_id );
+            }
+
+            $entry{$cve_id} = $entry;
         }
     }
+
+    return (%entry);
 
     #  $xp->dispose();
 }
@@ -338,3 +377,20 @@ sub process_vuln_scanner {
 
     return $results;
 }
+
+sub process_cwe_file {
+
+}
+
+sub process_weaknesses {
+
+}
+
+sub process_views {
+
+}
+
+sub process_categories {
+
+}
+
