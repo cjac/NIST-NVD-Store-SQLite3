@@ -6,6 +6,7 @@ use XML::XPath::XMLParser;
 use Storable qw(nfreeze thaw);
 use IO::Compress::Bzip2 qw(bzip2 $Bzip2Error);
 use IO::Uncompress::Bunzip2 qw(bunzip2 $Bunzip2Error);
+use Carp;
 
 use Getopt::Long;
 
@@ -44,7 +45,11 @@ my $nvd_entries = process_nvd_file($nvd);
 
 printf( "read \%i entries\n", int keys $nvd_entries );
 
+print "Processing CWE file...";
+
 my $cwe_data = process_cwe_file($cwe);
+
+print "Done.\n";
 
 print "Writing CPE URNs to disk...";
 
@@ -81,7 +86,7 @@ sub process_nvd_file {
     my $nvdcve_fd;
 
     open( $nvdcve_fd, q{<}, $filename )
-      or die qq{couldn't open "$filename": $!};
+        or die qq{couldn't open "$filename": $!};
 
     while ( my $line = <$nvdcve_fd> ) {
 
@@ -100,16 +105,14 @@ sub process_nvd_file {
                 }
 
                 $iter++;
-            }
-            else {
+            } else {
                 $header = $content;
             }
 
             $line =~ s/^$tail//;
             $content = $line;
 
-        }
-        else {
+        } else {
             $content .= $line;
         }
     }
@@ -125,14 +128,14 @@ sub process_nvd {
 
     my $nodeset = $xp->find('/nvd');
 
-    my @nvd_nodelist =
-      grep { $_->getName && $_->getName eq 'nvd' } $nodeset->get_nodelist;
+    my @nvd_nodelist
+        = grep { $_->getName && $_->getName eq 'nvd' } $nodeset->get_nodelist;
 
     my %entry = ();
 
     foreach my $nvd (@nvd_nodelist) {
-        my @entry_nodelist =
-          grep { $_->getName && $_->getName eq 'entry' } $nvd->getChildNodes();
+        my @entry_nodelist = grep { $_->getName && $_->getName eq 'entry' }
+            $nvd->getChildNodes();
 
         foreach my $entry_node (@entry_nodelist) {
             my $entry = process_entry( $entry_node, $nvd );
@@ -140,7 +143,7 @@ sub process_nvd {
             my $cve_id = $entry->{'vuln:cve-id'};
 
             foreach
-              my $cpe_urn ( @{ $entry->{'vuln:vulnerable-software-list'} } )
+                my $cpe_urn ( @{ $entry->{'vuln:vulnerable-software-list'} } )
             {
                 push( @{ $vuln_software{$cpe_urn} }, $cve_id );
             }
@@ -169,52 +172,40 @@ sub process_entry {
 
         if ( $nodeName eq 'vuln:vulnerable-configuration' ) {
             push( @{ $results->{$nodeName} }, process_vuln_config($vuln) );
-        }
-        elsif ( $nodeName eq 'vuln:vulnerable-software-list' ) {
+        } elsif ( $nodeName eq 'vuln:vulnerable-software-list' ) {
             $results->{$nodeName} = process_vuln_software_list($vuln);
-        }
-        elsif ( $nodeName eq 'vuln:cve-id' ) {
+        } elsif ( $nodeName eq 'vuln:cve-id' ) {
             $results->{$nodeName} = $vuln->string_value();
-        }
-        elsif ( $nodeName eq 'vuln:discovered-datetime' ) {
+        } elsif ( $nodeName eq 'vuln:discovered-datetime' ) {
             $results->{$nodeName} = $vuln->string_value();
-        }
-        elsif ( $nodeName eq 'vuln:published-datetime' ) {
+        } elsif ( $nodeName eq 'vuln:published-datetime' ) {
             $results->{$nodeName} = $vuln->string_value();
-        }
-        elsif ( $nodeName eq 'vuln:last-modified-datetime' ) {
+        } elsif ( $nodeName eq 'vuln:last-modified-datetime' ) {
             $results->{$nodeName} = $vuln->string_value();
-        }
-        elsif ( $nodeName eq 'vuln:cvss' ) {
+        } elsif ( $nodeName eq 'vuln:cvss' ) {
             $results->{$nodeName} = process_vuln_cvss($vuln);
-        }
-        elsif ( $nodeName eq 'vuln:cwe' ) {
+        } elsif ( $nodeName eq 'vuln:cwe' ) {
             push( @{ $results->{$nodeName} }, $vuln->getAttribute('id') );
-        }
-        elsif ( $nodeName eq 'vuln:references' ) {
-            push( @{ $results->{$nodeName} }, process_vuln_references($vuln) );
-        }
-        elsif ( $nodeName eq 'vuln:summary' ) {
+        } elsif ( $nodeName eq 'vuln:references' ) {
+            push( @{ $results->{$nodeName} },
+                process_vuln_references($vuln) );
+        } elsif ( $nodeName eq 'vuln:summary' ) {
             $results->{$nodeName} = $vuln->string_value();
-        }
-        elsif ( $nodeName eq 'vuln:security-protection' ) {
+        } elsif ( $nodeName eq 'vuln:security-protection' ) {
             $results->{$nodeName} = $vuln->string_value();
-        }
-        elsif ( $nodeName eq 'vuln:assessment_check' ) {
+        } elsif ( $nodeName eq 'vuln:assessment_check' ) {
             push(
                 @{ $results->{$nodeName} },
-                {
-                    map { $_->getName() => $_->getNodeValue() }
-                      ( $vuln->getAttributes() )
+                {   map { $_->getName() => $_->getNodeValue() }
+                        ( $vuln->getAttributes() )
                 }
             );
-        }
-        elsif ( $nodeName eq 'vuln:scanner' ) {
+        } elsif ( $nodeName eq 'vuln:scanner' ) {
             push( @{ $results->{$nodeName} }, process_vuln_scanner($vuln) );
-        }
-        else {
-            print(
-                "}elsif( \$vuln->getName() eq '" . $vuln->getName . "' ){\n" );
+        } else {
+            print(    "}elsif( \$vuln->getName() eq '"
+                    . $vuln->getName
+                    . "' ){\n" );
             exit;
         }
     }
@@ -232,7 +223,7 @@ sub process_vuln_config {
         my $nodeName = $node->getName();
 
         die "}elsif( \$nodeName eq '$nodeName' ){\n"
-          unless ( $nodeName eq 'cpe-lang:logical-test' );
+            unless ( $nodeName eq 'cpe-lang:logical-test' );
 
         push( @{ $results->{$nodeName} }, process_cpe_logical_test($node) );
     }
@@ -256,13 +247,14 @@ sub process_cpe_logical_test {
 
         if ( $nodeName eq 'cpe-lang:fact-ref' ) {
             push( @{ $results->{$nodeName} }, $node->getAttribute('name') );
-        }
-        elsif ( $nodeName eq 'cpe-lang:logical-test' ) {
-            push( @{ $results->{$nodeName} }, process_cpe_logical_test($node) );
-        }
-        else {
+        } elsif ( $nodeName eq 'cpe-lang:logical-test' ) {
+            push(
+                @{ $results->{$nodeName} },
+                process_cpe_logical_test($node)
+            );
+        } else {
             die
-"this logical test element looks invalid.  This element is a(n) [$nodeName]";
+                "this logical test element looks invalid.  This element is a(n) [$nodeName]";
         }
     }
 
@@ -280,7 +272,7 @@ sub process_vuln_software_list {
         next unless $nodeName;
 
         die qq[}elsif( \$nodeName eq '$nodeName' ){]
-          unless $nodeName eq 'vuln:product';
+            unless $nodeName eq 'vuln:product';
 
         push( @$results, $node->string_value() );
     }
@@ -310,10 +302,10 @@ sub process_vuln_cvss {
                 my $metricName = $metric->getName();
                 next unless $metricName;
 
-                $results->{$nodeName}->{$metricName} = $metric->string_value();
+                $results->{$nodeName}->{$metricName}
+                    = $metric->string_value();
             }
-        }
-        else {
+        } else {
             die qq[}elsif( \$nodeName eq '$nodeName' ){];
         }
 
@@ -339,12 +331,11 @@ sub process_vuln_references {
         next unless $nodeName;
 
         if ( $nodeName eq 'vuln:reference' ) {
-            push( @{ $results->{$nodeName} }, process_vuln_references($node) );
-        }
-        elsif ( $nodeName eq 'vuln:source' ) {
+            push( @{ $results->{$nodeName} },
+                process_vuln_references($node) );
+        } elsif ( $nodeName eq 'vuln:source' ) {
             $results->{$nodeName} = $node->string_value();
-        }
-        else {
+        } else {
             die qq[}elsif( \$nodeName eq '$nodeName' ){];
         }
     }
@@ -366,11 +357,10 @@ sub process_vuln_scanner {
         if ( $nodeName eq 'vuln:definition' ) {
             foreach my $attr ( $node->getAttributes() ) {
                 next unless $attr;
-                $results->{$nodeName}->{ $attr->getName() } =
-                  $attr->getNodeValue();
+                $results->{$nodeName}->{ $attr->getName() }
+                    = $attr->getNodeValue();
             }
-        }
-        else {
+        } else {
             die qq[}elsif( \$nodeName eq '$nodeName' ){];
         }
     }
@@ -380,17 +370,190 @@ sub process_vuln_scanner {
 
 sub process_cwe_file {
 
+    my ($filename) = @_;
+
+    my ($CWE_Entry_HASH) = {};
+
+    my $iter = 0;
+
+    my $element_body;
+
+    my $cwe_fd;
+
+    open( $cwe_fd, q{<}, $filename )
+        or die qq{couldn't open "$filename": $!};
+
+    my $content;
+    {
+        open( $cwe_fd, q{<}, $filename )
+            or die qq{couldn't open "$filename": $!};
+        my $oldslash = $/;
+        local undef $/;
+        $content = <$cwe_fd>;
+        $/       = $oldslash;
+    };
+
+    my ($header) = ( $content =~ /^(.*?<Weakness_Catalog[^>]+>)/msg );
+    my $footer = '</Weakness_Catalog>';
+
+    $content = "";
+
+    open( $cwe_fd, q{<}, $filename )
+        or die qq{couldn't open "$filename": $!};
+
+    my $current_element;
+    my $function;
+
+    my %parent_element = (
+        View             => 'Views',
+        Category         => 'Categories',
+        Weakness         => 'Weaknesses',
+        Compound_Element => 'Compound_Elements',
+    );
+
+    while ( my $line = <$cwe_fd> ) {
+        if (   $line =~ /(^.*?)<(View|Category|Weakness|Compound_Element)[> ]/
+            || $line =~ m:(^.*?)</Weakness_Catalog>:    # last entry
+            )
+        {
+            my $tail         = $1;
+            my $next_element = $2;
+            my $lcelement    = lc $next_element if $next_element;
+
+            if ( !$current_element ) {
+                $current_element = $next_element;
+                my $funcname = "process_$lcelement";
+                $function = \&$funcname;
+                $line =~ s/^$tail//;
+                $content = $line;
+
+                next;
+            } elsif ( $current_element && $current_element ne $next_element ) {
+							$content =~ s:</$parent_element{$current_element}>::;
+							$content =~ s:<$parent_element{$next_element}>::;
+            }
+
+            $content .= $tail;
+
+            $element_body = $content;
+
+            my $xml_string
+                = (   "$header\n"
+                    . "<$parent_element{$current_element}>\n"
+                    . "$element_body\n"
+                    . "</$parent_element{$current_element}>\n"
+                    . "$footer\n" );
+
+            my %cwe = $function->($xml_string);
+
+            while ( my ( $id, $element ) = each %cwe ) {
+
+                #                $CWE_Entry_HASH->{" ${lcelement} _ $id
+                #                "} = $element;
+            }
+
+            $iter++;
+
+            $line =~ s/^$tail//;
+            $content = $line;
+
+            if ( $next_element && $current_element ne $next_element ) {
+                $current_element = $next_element;
+                my $funcname = "process_$lcelement";
+                $function = \&$funcname;
+            }
+
+        } else {
+            $content .= $line;
+        }
+
+    }
+
 }
 
-sub process_weaknesses {
+sub process_weakness {
+    my ($xml) = @_;
+
+    my $xp = XML::XPath->new( xml => $xml );
+
+    my $nodeset = $xp->find('/Weakness');
+
+    my @weakness_nodelist = grep { $_->getName && $_->getName eq 'Weakness' }
+        $nodeset->get_nodelist;
+
+    die Data::Dumper::Dumper [ $nodeset->get_nodelist ];
+    return ( 'weakness_id' => {} );
+}
+
+sub process_view {
+    my ($view_xml) = @_;
+
+    my $results = {};
+
+    my $xp = eval { XML::XPath->new( xml => $view_xml ) };
+    croak "couldn't parse xml:\n" . $view_xml . "\n\n" . $@ if $@;
+
+    my $class = 'XML::XPath';
+
+    croak "XP is not a [$class]: " . Data::Dumper::Dumper($xp)
+        unless ref $xp eq $class;
+
+    my $nodeset = $xp->find('/Views/View');
+
+    my @view_nodelist = grep { $_->getName && $_->getName eq 'View' }
+        $nodeset->get_nodelist;
+
+    foreach my $view (@view_nodelist) {
+
+        foreach my $attr ( $view->getAttributes() ) {
+            next unless $attr;
+            $results->{ $attr->getName() } = $attr->getNodeValue();
+        }
+
+        foreach my $element ( $view->getChildNodes() ) {
+            my $nodeName = $element->getName();
+
+            if ( $nodeName eq 'View_Structure' ) {
+                $results->{$nodeName} = $element->string_value();
+            } elsif ( $nodeName eq 'View_Objective' ) {
+                my $text = $element->find('/Text');
+                foreach my $text_node ( $text->get_nodelist ) {
+                    push(
+                        @{ $results->{$nodeName} },
+                        $text_node->string_value()
+                    );
+                }
+
+            }
+        }
+
+    }
 
 }
 
 sub process_views {
+    my ($xml) = @_;
 
+    my $xp = XML::XPath->new( xml => $xml );
+
+    my $nodeset = $xp->find('//View');
+
+    my @view_nodelist = grep { $_->getName && $_->getName eq 'View' }
+        $nodeset->get_nodelist;
+
+    foreach my $view_node (@view_nodelist) {
+        my $view = process_view($view_node);
+    }
+
+    return ( 'view_id' => {} );
 }
 
-sub process_categories {
-
+sub process_category {
+    print " c ";
+    return ( 'category_id' => {} );
 }
 
+sub process_compound_element {
+    print " e ";
+    return ( 'compound_id' => {} );
+}

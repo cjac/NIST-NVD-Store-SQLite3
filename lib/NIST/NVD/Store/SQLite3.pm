@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS cve (
   cve_id  VARCHAR(16) CONSTRAINT uniq_cve_id UNIQUE ON CONFLICT FAIL,
   cve_dump BLOB
 )},
-						 cwe_create => qq{
+    cwe_create => qq{
 CREATE TABLE IF NOT EXISTS cwe (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
   cwe_id  VARCHAR(16) CONSTRAINT uniq_cwe_id UNIQUE ON CONFLICT FAIL,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS cpe_cve_map (
 
   cpe_id INTEGER,
   cve_id INTEGER,
-  CONSTRAINT uniq_cpe_cve UNIQUE ( cpe_id, cve_id ) ON CONFLICT FAIL
+  CONSTRAINT uniq_cpe_cve UNIQUE ( cpe_id, cve_id ) ON CONFLICT IGNORE
 )},
 
     cve_for_cpe_select => qq{
@@ -128,7 +128,7 @@ sub new {
         qw( put_cpe_insert cve_for_cpe_select put_idx_cpe_insert
         put_cve_insert put_cve_update get_cpe_id_select
         get_cve_id_select get_cve_select )
-      )
+        )
     {
         $sth{$statement} = $self->{sqlite}->prepare( $query{$statement} );
     }
@@ -169,8 +169,7 @@ sub get_cve_for_cpe {
     my $cpe_pkey_id;
     if ( $cpe =~ /^cpe/ ) {
         $cpe_pkey_id = $self->_get_cpe_id($cpe);
-    }
-    else {
+    } else {
         $cpe_pkey_id = $cpe;
     }
 
@@ -189,7 +188,7 @@ sub _get_cve_id {
     my ( $self, $cve_id ) = @_;
 
     return $self->{cve_map}->{$cve_id}
-      if ( exists $self->{cve_map}->{$cve_id} );
+        if ( exists $self->{cve_map}->{$cve_id} );
 
     $sth{get_cve_id_select}->execute($cve_id);
 
@@ -199,8 +198,8 @@ sub _get_cve_id {
     my $rows = 0;
     while ( my $row = $sth{get_cve_id_select}->fetchrow_hashref() ) {
         print STDERR
-"multiple ($rows) results for value intended to be unique.  cve_id: [$cve_id]\n"
-          if ( $rows != 0 );
+            "multiple ($rows) results for value intended to be unique.  cve_id: [$cve_id]\n"
+            if ( $rows != 0 );
 
         $rows++;
 
@@ -208,7 +207,7 @@ sub _get_cve_id {
     }
 
     return $self->{cve_map}->{$cve_id}
-      if ( exists $self->{cve_map}->{$cve_id} );
+        if ( exists $self->{cve_map}->{$cve_id} );
 
     return;
 }
@@ -221,7 +220,7 @@ sub _get_cpe_id {
     my ( $self, $cpe_urn ) = @_;
 
     return $self->{cpe_map}->{$cpe_urn}
-      if ( exists $self->{cpe_map}->{$cpe_urn} );
+        if ( exists $self->{cpe_map}->{$cpe_urn} );
 
     $sth{get_cpe_id_select}->execute($cpe_urn);
 
@@ -229,8 +228,8 @@ sub _get_cpe_id {
     my $rows = 0;
     while ( my $row = $sth{get_cpe_id_select}->fetchrow_hashref() ) {
         print STDERR
-"multiple ($rows) results for value intended to be unique.  cpe_urn: [$cpe_urn]\n"
-          if ( $rows != 0 );
+            "multiple ($rows) results for value intended to be unique.  cpe_urn: [$cpe_urn]\n"
+            if ( $rows != 0 );
         $self->{cpe_map}->{$cpe_urn} = $row->{id};
     }
 
@@ -245,9 +244,9 @@ sub _get_cpe_id {
 sub get_cve {
     my ( $self, %args ) = @_;
 
-		$sth{get_cve_select}->execute( $args{cve_id} );
+    $sth{get_cve_select}->execute( $args{cve_id} );
 
-		my $row = $sth{get_cve_select}->fetchrow_hashref();
+    my $row = $sth{get_cve_select}->fetchrow_hashref();
 
     my $frozen = $row->{cve_dump};
 
@@ -265,6 +264,8 @@ sub get_cve {
 
 =cut
 
+my %uniq_idx_cpe;
+
 sub put_idx_cpe {
     my ( $self, $vuln_software ) = @_;
 
@@ -273,7 +274,10 @@ sub put_idx_cpe {
     while ( my ( $cpe_urn, $cve_id ) = ( each %$vuln_software ) ) {
         my $cpe_pkey_id = $self->_get_cpe_id($cpe_urn);
         my (@cve_pkey_id) = map { $self->_get_cve_id($_) } @$cve_id;
+
         foreach my $cve_pkey_id (@cve_pkey_id) {
+            next if $uniq_idx_cpe{$cpe_pkey_id}->{$cve_pkey_id}++;
+
             $sth{put_idx_cpe_insert}->execute( $cpe_pkey_id, $cve_pkey_id );
         }
     }
@@ -299,14 +303,15 @@ sub put_cpe {
 
     while ( my $row = $sth->fetchrow_hashref() ) {
         delete $cpe_urn{ $row->{cpe_urn} }
-          if exists $cpe_urn{ $row->{cpe_urn} };
+            if exists $cpe_urn{ $row->{cpe_urn} };
     }
 
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
 
     foreach my $urn ( keys %cpe_urn ) {
-        my (
-            $prefix,  $nada,   $part,    $vendor, $product,
+        next if $inserted_cpe{$urn}++;
+
+        my ($prefix,  $nada,   $part,    $vendor, $product,
             $version, $update, $edition, $language
         ) = split( m{[/:]}, $urn );
 
@@ -352,8 +357,7 @@ sub put_nvd_entries {
         if ($cve_pkey_id) {
             $cve_id = $cve_pkey_id;
             $sth    = $sth{put_cve_update};
-        }
-        else {
+        } else {
             $sth = $sth{put_cve_insert};
         }
 

@@ -53,7 +53,9 @@ chdir($data_dir);
 
 $ENV{PERL5LIB} = File::Spec->catfile( $dist_dir, 'blib', 'lib' );
 
-my $output = `$convert_script --nvd $nvd_source_file --cwe $cwe_source_file --store SQLite3 2>&1`;
+my $cmd = "$convert_script --nvd $nvd_source_file --cwe $cwe_source_file --store SQLite3 2>&1";
+diag "running $cmd";
+my $output = `$cmd`;
 
 is( $?, 0, 'conversion script returned cleanly' ) or diag $output;
 file_exists_ok( $db_file, 'database file exists' );
