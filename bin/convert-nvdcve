@@ -69,6 +69,13 @@ $NVD_Updater->put_idx_cpe( \%vuln_software );
 
 print "Done.\n";
 
+print "Writing CWE index to disk...";
+
+$NVD_Updater->put_idx_cwe( \%weaknesses );
+
+print "Done.\n";
+
+
 sub process_nvd_file {
 
     my ($filename) = @_;
@@ -428,10 +435,11 @@ sub process_cwe_file {
                 $content = $line;
 
                 next;
-            } elsif ( $current_element && $current_element ne $next_element )
+            } elsif ( !$next_element ){
+						} elsif ( $current_element && $current_element ne $next_element )
             {
                 $content =~ s:</$parent_element{$current_element}>::;
-                $content =~ s:<$parent_element{$next_element}>::;
+                $content =~ s:<$parent_element{$next_element}>:: if $next_element;
             }
 
             $content .= $tail;
@@ -444,6 +452,12 @@ sub process_cwe_file {
                     . "$element_body\n"
                     . "</$parent_element{$current_element}>\n"
                     . "$footer\n" );
+
+            die $current_element
+                unless ( $current_element eq 'View'
+                || $current_element eq 'Category'
+                || $current_element eq 'Weakness'
+                || $current_element eq 'Compound_Element' );
 
             my %cwe = $function->($xml_string);
 
@@ -475,6 +489,8 @@ sub process_cwe_file {
 sub process_weakness {
     my ($weakness_xml) = @_;
 
+    print "w";
+
     my $xp = eval { XML::XPath->new( xml => $weakness_xml ) };
     croak "couldn't parse xml:\n" . $weakness_xml . "\n\n" . $@ if $@;
 
@@ -488,6 +504,8 @@ sub process_weakness {
 
 sub process_view {
     my ($view_xml) = @_;
+
+    print "v";
 
     my $results = {};
 
@@ -504,50 +522,51 @@ sub process_view {
     my @view_nodelist = grep { $_->getName && $_->getName eq 'View' }
         $nodeset->get_nodelist;
 
-    foreach my $view (@view_nodelist) {
-        foreach my $attr ( $view->getAttributes() ) {
-            next unless $attr;
-            $results->{ $attr->getName() } = $attr->getNodeValue();
-        }
+    croak("there should be one and only one node") if int @view_nodelist != 1;
 
-        foreach my $element ( $view->getChildNodes() ) {
-            my $type = ref $element;
+    my $view_id = 'x';
 
-            my $str = $element->string_value();
+    my $view = $view_nodelist[0];
 
-            if ( $type eq 'XML::XPath::Node::Text' ) {
-                next if $str =~ /^\s*$/;
-            } elsif ( $type eq 'XML::XPath::Node::Element' ) {
-
-            }
-
-            die "\n" . "type: [$type]\n" . "value: [$str]" . "\n";
-
-            my $nodeName;
-
-            $nodeName = $element->getName()
-                if $element->can('getName');
-
-            if ( $nodeName eq 'View_Structure' ) {
-                $results->{$nodeName} = $element->string_value();
-            } elsif ( $nodeName eq 'View_Objective' ) {
-
-                die "moo objective";
-
-                my $text = $element->find('/Text');
-                foreach my $text_node ( $text->get_nodelist ) {
-
-                    push(
-                        @{ $results->{$nodeName} },
-                        $text_node->string_value()
-                    );
-                }
-
-            }
-        }
-
+    foreach my $attr ( $view->getAttributes() ) {
+        next unless $attr;
+        $results->{ $attr->getName() } = $attr->getNodeValue();
     }
 
+    foreach my $element ( $view->getChildNodes() ) {
+        my $type = ref $element;
+
+        my $nodeName = $element->getName() if $element->can('getName');
+
+        my $str = $element->string_value();
+
+        if ( $type eq 'XML::XPath::Node::Text' ) {
+            next if $str =~ /^\s*$/;
+        } elsif ( $type eq 'XML::XPath::Node::Element' ) {
+        } else {
+            die "\n"
+                . "type: [$type]\n"
+                . "name: [$nodeName]" . "\n"
+                . "value: [$str]" . "\n";
+        }
+
+        $nodeName = $element->getName()
+            if $element->can('getName');
+
+        if ( $nodeName eq 'View_Structure' ) {
+            $results->{$nodeName} = $element->string_value();
+        } elsif ( $nodeName eq 'View_Objective' ) {
+            my $text = $element->find('/Text');
+            foreach my $text_node ( $text->get_nodelist ) {
+                print "t";
+                push( @{ $results->{$nodeName} },
+                    $text_node->string_value() );
+            }
+
+        }
+    }
+
+    return ( $view_id => {} );
 }
 
 sub process_views {

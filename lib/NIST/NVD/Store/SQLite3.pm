@@ -285,6 +285,20 @@ sub put_idx_cpe {
     $self->{sqlite}->commit();
 }
 
+=head2 put_idx_cpe
+
+
+=cut
+
+my %uniq_idx_cwe;
+
+sub put_idx_cwe {
+	my ( $self, $weaknesses ) = @_;
+
+	return;
+}
+
+
 =head2 put_cpe
 
 
