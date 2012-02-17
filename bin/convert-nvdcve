@@ -788,6 +788,33 @@ sub process_view {
 
 
 sub process_category {
+    my ($category_xml) = @_;
+
+    print "v";
+
+    my $results = {};
+
+    my $xp = eval { XML::XPath->new( xml => $category_xml ) };
+    croak "couldn't parse xml:\n" . $category_xml . "\n\n" . $@ if $@;
+
+    my $class = 'XML::XPath';
+
+    croak "XP is not a [$class]: " . Data::Dumper::Dumper($xp)
+        unless ref $xp eq $class;
+
+    my $nodeset = $xp->find('/Weakness_Catalog/Categories/Category');
+
+    my @category_nodelist = grep { $_->getName && $_->getName eq 'Category' }
+        $nodeset->get_nodelist;
+
+    croak("there should be one and only one node") if int @category_nodelist != 1;
+
+    my $category_id = 'x';
+
+    my $category = $category_nodelist[0];
+
+
+
     print "c";
     return ( 'category_id' => {} );
 }
