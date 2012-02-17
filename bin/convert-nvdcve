@@ -374,7 +374,22 @@ sub process_vuln_scanner {
     return $results;
 }
 
-sub process_cwe_file {
+my %close_regex = (
+    Views             => qr:</Views>:,
+    Categories        => qr:</Categories>:,
+    Weaknesses        => qr:</Weaknesses>:,
+    Compound_Elements => qr:</Compound_Elements>:,
+);
+my %open_regex = (
+    Views             => qr:<Views>:,
+    Categories        => qr:<Categories>:,
+    Weaknesses        => qr:<Weaknesses>:,
+    Compound_Elements => qr:<Compound_Elements>:,
+);
+
+</$parent_element{$current_element}>
+
+    sub process_cwe_file {
 
     my ($filename) = @_;
 
@@ -437,9 +452,9 @@ sub process_cwe_file {
             } elsif ( !$next_element ) {
             } elsif ( $current_element && $current_element ne $next_element )
             {
-                $content =~ s:</$parent_element{$current_element}>::;
-                $content =~ s:<$parent_element{$next_element}>::
-                    if $next_element;
+                $content
+                    =~ s:$close_regex{$parent_element{$current_element}}::;
+                $content =~ s:$open_regex{$parent_element{$next_element}}::;
             }
 
             $content .= $tail;
