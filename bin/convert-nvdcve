@@ -15,6 +15,17 @@ my ( $nvd, $store, $cwe );
 my %done             = ();
 my %category_handler = ();
 
+my %rating = (
+    'Very High'         => 1,
+    'High to Very High' => 2,
+    'High'              => 3,
+    'Medium to High'    => 4,
+    'Medium'            => 5,
+    'Low to Medium'     => 6,
+    'Low'               => 7,
+    'Very Low'          => 8,
+);
+
 my $result = GetOptions(
     "nvd=s"   => \$nvd,
     "cwe=s"   => \$cwe,
@@ -581,16 +592,6 @@ sub process_weakness {
 
             my $likelihood = $element->string_value;
             my $value;
-            my %rating = (
-                'Very High'         => 1,
-                'High to Very High' => 2,
-                'High'              => 3,
-                'Medium to High'    => 4,
-                'Medium'            => 5,
-                'Low to Medium'     => 6,
-                'Low'               => 7,
-                'Very Low'          => 8,
-            );
 
             print "likelihood value '$likelihood' not accounted for\n"
                 unless exists $rating{$likelihood};
@@ -834,20 +835,50 @@ sub process_category {
         if ( $nodeName eq 'Description' ) {
             $results->{$nodeName} = process_category_description($element);
             print "D";
+        } elsif ( $nodeName eq 'Likelihood_of_Exploit' ) {
+            if ( exists $rating{$str} ) {
+                $results->{$nodeName} = $rating{$str};
+            } else {
+                print "\n} elsif ( \$str eq '$str' ) {\n\n";
+            }
+            print "L";
+        } elsif ( $nodeName eq 'Time_of_Introduction' ) {
+
+            foreach my $int_node ( $element->getChildNodes ) {
+                my $int_type = ref $int_node;
+                my $int_name = undef;
+                my $int_str  = undef;
+
+                $int_str = $int_node->string_value()
+                    if $int_node->can('string_value');
+
+                $int_name = $int_node->getName()
+                    if $int_node->can('getName');
+
+                if ( $int_type eq 'XML::XPath::Node::Text' ) {
+                    next unless defined $int_str;
+                    next if $int_str =~ /^\s*$/;
+                    die $int_str;
+                } elsif ( $int_name eq 'Introductory_Phase' ) {
+                    push( @{ $results->{$nodeName} }, $int_str );
+                } elsif ($int_name) {
+                    print "\n} elsif ( \$int_name eq '$int_name' ) {\n\n";
+                }
+            }
+
+        } elsif ( $nodeName eq 'Affected_Resources' ) {
+        } elsif ( $nodeName eq 'Applicable_Platforms' ) {
+
         } elsif ( $nodeName eq 'Content_History' ) {
         } elsif ( $nodeName eq 'Relationships' ) {
         } elsif ( $nodeName eq 'Taxonomy_Mappings' ) {
-        } elsif ( $nodeName eq 'Time_of_Introduction' ) {
         } elsif ( $nodeName eq 'Related_Attack_Patterns' ) {
-        } elsif ( $nodeName eq 'Applicable_Platforms' ) {
         } elsif ( $nodeName eq 'Other_Notes' ) {
         } elsif ( $nodeName eq 'Potential_Mitigations' ) {
         } elsif ( $nodeName eq 'References' ) {
         } elsif ( $nodeName eq 'Maintenance_Notes' ) {
-        } elsif ( $nodeName eq 'Likelihood_of_Exploit' ) {
         } elsif ( $nodeName eq 'Common_Consequences' ) {
         } elsif ( $nodeName eq 'Demonstrative_Examples' ) {
-        } elsif ( $nodeName eq 'Affected_Resources' ) {
         } elsif ( $nodeName eq 'White_Box_Definitions' ) {
         } elsif ( $nodeName eq 'Relationship_Notes' ) {
         } elsif ( $nodeName eq 'Theoretical_Notes' ) {
