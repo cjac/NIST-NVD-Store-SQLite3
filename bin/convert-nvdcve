@@ -66,11 +66,11 @@ my $cwe_data = process_cwe_file($cwe);
 
 print "Done.\n";
 
-printf( "read \%i cwe Views\n", int keys $cwe_data->{View} );
+printf( "read \%i cwe Views\n",      int keys $cwe_data->{View} );
 printf( "read \%i cwe Categories\n", int keys $cwe_data->{Category} );
 printf( "read \%i cwe Weaknesses\n", int keys $cwe_data->{Weakness} );
-printf( "read \%i cwe Compound Elements\n", int keys $cwe_data->{Compound_Element} );
-
+printf( "read \%i cwe Compound Elements\n",
+    int keys $cwe_data->{Compound_Element} );
 
 print "Writing CPE URNs to disk...";
 
@@ -453,8 +453,7 @@ sub process_cwe_file {
 
                 next;
             } elsif ( !$next_element ) {
-            } elsif ( $current_element ne $next_element )
-            {
+            } elsif ( $current_element ne $next_element ) {
 
                 my $cl_re = $close_regex{ $parent_element{$current_element} };
                 my $op_re = $open_regex{ $parent_element{$next_element} };
@@ -483,7 +482,7 @@ sub process_cwe_file {
             my %cwe = $function->($xml_string);
 
             while ( my ( $id, $element ) = each %cwe ) {
-							$CWE_Entry_HASH->{$current_element}->{$id} = $element;
+                $CWE_Entry_HASH->{$current_element}->{$id} = $element;
             }
 
             $iter++;
@@ -503,7 +502,7 @@ sub process_cwe_file {
 
     }
 
-		return $CWE_Entry_HASH;
+    return $CWE_Entry_HASH;
 }
 
 my %done = ();
@@ -530,8 +529,6 @@ sub process_weakness {
         next unless $attr;
         $results->{ $attr->getName() } = $attr->getNodeValue();
     }
-
-		
 
     foreach my $element ( $weakness->getChildNodes() ) {
         my $nodeName = $element->getName();
@@ -681,27 +678,31 @@ sub process_common_consequences {
                     if ( $_nodeName eq 'Text' ) {
                         push( @{ $con->{note} }, $note->string_value );
                     } elsif ( $_nodeName eq 'Block' ) {
-											my $block = {};
+                        my $block = {};
 
-											foreach my $attr ( $note->getAttributes() ) {
-												if($attr->getName() eq 'Block_Nature'){
-													my $attrVal = $attr->getNodeValue();
-													if( $attrVal eq 'List' ){
-														$block = [];
-														foreach my $txt ( $note->getChildNodes() ){
-															my $nm = $txt->getName();
-															next unless $nm;
-															die "element type [$nm] not accounted for" unless $nm eq 'Text';
-															push(@$block, $txt->string_value());
-														}
-													}else{
-														print "\n} elsif ( \$attrVal eq '$attrVal' ) {\n";
-													}
-												}
-											}
-											push(@{ $con->{note} }, $block);
+                        foreach my $attr ( $note->getAttributes() ) {
+                            if ( $attr->getName() eq 'Block_Nature' ) {
+                                my $attrVal = $attr->getNodeValue();
+                                if ( $attrVal eq 'List' ) {
+                                    $block = [];
+                                    foreach my $txt ( $note->getChildNodes() )
+                                    {
+                                        my $nm = $txt->getName();
+                                        next unless $nm;
+                                        die
+                                            "element type [$nm] not accounted for"
+                                            unless $nm eq 'Text';
+                                        push( @$block, $txt->string_value() );
+                                    }
+                                } else {
+                                    print
+                                        "\n} elsif ( \$attrVal eq '$attrVal' ) {\n";
+                                }
+                            }
+                        }
+                        push( @{ $con->{note} }, $block );
                     } else {
-											print "\n} elsif ( \$_nodeName eq '$_nodeName' ) {\n"
+                        print "\n} elsif ( \$_nodeName eq '$_nodeName' ) {\n"
                             unless
                             exists $done{"consequence note $_nodeName"};
                         $done{"consequence note $_nodeName"}++;
@@ -767,9 +768,6 @@ sub process_view {
                 . "value: [$str]" . "\n";
         }
 
-        $nodeName = $element->getName()
-            if $element->can('getName');
-
         if ( $nodeName eq 'View_Structure' ) {
             $results->{$nodeName} = $element->string_value();
         } elsif ( $nodeName eq 'View_Objective' ) {
@@ -785,7 +783,6 @@ sub process_view {
 
     return ( $results->{ID} => $results );
 }
-
 
 sub process_category {
     my ($category_xml) = @_;
@@ -807,14 +804,63 @@ sub process_category {
     my @category_nodelist = grep { $_->getName && $_->getName eq 'Category' }
         $nodeset->get_nodelist;
 
-    croak("there should be one and only one node") if int @category_nodelist != 1;
+    croak("there should be one and only one node")
+        if int @category_nodelist != 1;
 
     my $category_id = 'x';
 
     my $category = $category_nodelist[0];
 
+    foreach my $attr ( $category->getAttributes() ) {
+        next unless $attr;
+        $results->{ $attr->getName() } = $attr->getNodeValue();
+    }
 
+    foreach my $element ( $category->getChildNodes() ) {
 
+        my $type     = ref $element;
+        my $nodeName = $element->getName() if $element->can('getName');
+        my $str      = $element->string_value();
+
+        if ( $type eq 'XML::XPath::Node::Text' ) {
+            next if $str =~ /^\s*$/;
+        } elsif ( $type eq 'XML::XPath::Node::Element' ) {
+        } else {
+            die "\n"
+                . "type: [$type]\n"
+                . "name: [$nodeName]" . "\n"
+                . "value: [$str]" . "\n";
+        }
+
+        if ( $nodeName eq 'Description' ) {
+            foreach my $description_node ( $element->getChildNodes ) {
+                my $node_type = ref $description_node;
+                my $node_name = $description_node->getName()
+                    if $description_node->can('getName');
+
+                if ( $node_type eq 'XML::XPath::Node::Text' ) {
+                    next if $str =~ /^\s*$/;
+                } elsif ( $node_type eq 'XML::XPath::Node::Element' ) {
+                } elsif ( $node_type eq 'XML::XPath::Node::ElementImpl' ) {
+                    die "$node_type";
+                } else {
+                    die "\n"
+                        . "type: [$node_type]\n"
+                        . "name: [$nodeName]" . "\n"
+                        . "value: [$str]" . "\n";
+                }
+
+                print "D";
+                push(
+                    @{ $results->{$nodeName} },
+                    $description_node->string_value()
+                );
+            }
+        } else {
+
+            #die "} elsif ( \$nodename eq $nodename ) {";
+        }
+    }
     print "c";
     return ( 'category_id' => {} );
 }
