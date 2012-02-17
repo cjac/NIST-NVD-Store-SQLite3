@@ -512,6 +512,8 @@ sub process_cwe_file {
 
 }
 
+my %done = ();
+
 sub process_weakness {
     my ($weakness_xml) = @_;
 
@@ -552,13 +554,47 @@ sub process_weakness {
                 } elsif ( $_nodeName eq 'Extended_Description' ) {
                     $data->{$_nodeName}
                         = process_extended_description($child);
-                }else{
-									die "no handler for Description child named [$_nodeName]";
-								}
+                } else {
+                    die "no handler for Description child named [$_nodeName]";
+                }
             }
-        }else{
-					die "no handler for Weakness child named [$nodeName]";
-				}
+        } elsif ( $nodeName eq 'Relationships' ) {
+            $data->{$nodeName} = process_relationships($element);
+        } elsif ( $nodeName eq 'Common_Consequences' ) {
+        } elsif ( $nodeName eq 'Weakness_Ordinalities' ) {
+        } elsif ( $nodeName eq 'Applicable_Platforms' ) {
+        } elsif ( $nodeName eq 'Time_of_Introduction' ) {
+        } elsif ( $nodeName eq 'Potential_Mitigations' ) {
+        } elsif ( $nodeName eq 'Causal_Nature' ) {
+        } elsif ( $nodeName eq 'Demonstrative_Examples' ) {
+        } elsif ( $nodeName eq 'Taxonomy_Mappings' ) {
+        } elsif ( $nodeName eq 'Content_History' ) {
+        } elsif ( $nodeName eq 'Relationship_Notes' ) {
+        } elsif ( $nodeName eq 'Maintenance_Notes' ) {
+        } elsif ( $nodeName eq 'Background_Details' ) {
+        } elsif ( $nodeName eq 'Other_Notes' ) {
+        } elsif ( $nodeName eq 'References' ) {
+        } elsif ( $nodeName eq 'Related_Attack_Patterns' ) {
+        } elsif ( $nodeName eq 'Observed_Examples' ) {
+        } elsif ( $nodeName eq 'Theoretical_Notes' ) {
+        } elsif ( $nodeName eq 'Affected_Resources' ) {
+        } elsif ( $nodeName eq 'Research_Gaps' ) {
+        } elsif ( $nodeName eq 'Alternate_Terms' ) {
+        } elsif ( $nodeName eq 'Terminology_Notes' ) {
+        } elsif ( $nodeName eq 'Likelihood_of_Exploit' ) {
+        } elsif ( $nodeName eq 'Detection_Methods' ) {
+        } elsif ( $nodeName eq 'Functional_Areas' ) {
+        } elsif ( $nodeName eq 'White_Box_Definitions' ) {
+        } elsif ( $nodeName eq 'Modes_of_Introduction' ) {
+        } elsif ( $nodeName eq 'Relevant_Properties' ) {
+        } elsif ( $nodeName eq 'Enabling_Factors_for_Exploitation' ) {
+        } else {
+            print "\n} elsif ( \$nodeName eq '$nodeName' ) {\n"
+                unless exists $done{$nodeName};
+
+            $done{$nodeName}++;
+
+        }
     }
 
     return ( 'weakness_id' => $results );
@@ -577,24 +613,33 @@ sub process_extended_description {
         } elsif ( $nodeName eq 'Block' ) {
             my $block = [];
             push( @$results, $block );
-						my $title = '';
+            my $title = '';
             foreach my $blockchild ( $child->getChildNodes() ) {
                 my $_nodeName = $blockchild->getName() or next;
                 if ( $_nodeName eq 'Text' ) {
-									if( $title ){
-										push( @$block, { title => $title, text => $blockchild->string_value() } );
-										undef $title;
-									}else{
-										push( @$block, $blockchild->string_value() );
-									}
-                } elsif( $_nodeName eq 'Text_Title' ){
-									$title = $blockchild->string_value();
-								}else{
+                    if ($title) {
+                        push(
+                            @$block,
+                            {   title => $title,
+                                text  => $blockchild->string_value()
+                            }
+                        );
+                        undef $title;
+                    } else {
+                        push( @$block, $blockchild->string_value() );
+                    }
+                } elsif ( $_nodeName eq 'Text_Title' ) {
+                    $title = $blockchild->string_value();
+                } else {
                     die "no handler for block child named [$_nodeName]";
                 }
             }
         }
     }
+}
+
+sub process_relationships {
+
 }
 
 sub process_view {
