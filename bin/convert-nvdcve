@@ -451,17 +451,21 @@ sub process_cwe_file {
             } elsif ( $current_element && $current_element ne $next_element )
             {
 
-							die "close regex for [$parent_element{$current_element}] not defined"
-								unless exists $close_regex{$parent_element{$current_element}};
+                die
+                    "close regex for [$parent_element{$current_element}] not defined"
+                    unless
+                    exists $close_regex{ $parent_element{$current_element} };
 
-							die "open regex for [$parent_element{$next_element}] not defined"
-								unless exists $open_regex{$parent_element{$next_element}};
+                die
+                    "open regex for [$parent_element{$next_element}] not defined"
+                    unless
+                    exists $open_regex{ $parent_element{$next_element} };
 
-							my $cl_re = $close_regex{$parent_element{$current_element}};
-							my $op_re = $open_regex{$parent_element{$next_element}};
+                my $cl_re = $close_regex{ $parent_element{$current_element} };
+                my $op_re = $open_regex{ $parent_element{$next_element} };
 
-							$content =~ s:$cl_re::;
-							$content =~ s:$op_re::;
+                $content =~ s:$cl_re::;
+                $content =~ s:$op_re::;
             }
 
             $content .= $tail;
@@ -511,6 +515,8 @@ sub process_cwe_file {
 sub process_weakness {
     my ($weakness_xml) = @_;
 
+    my $results = {};
+
     print "w";
 
     my $xp = eval { XML::XPath->new( xml => $weakness_xml ) };
@@ -518,14 +524,77 @@ sub process_weakness {
 
     my $nodeset = $xp->find('/Weakness_Catalog/Weaknesses/Weakness');
 
-    my @weakness_nodelist = grep { $_->getName && $_->getName eq 'Weakness' }
-        $nodeset->get_nodelist;
+    my @weaknesses = $nodeset->get_nodelist();
 
-    foreach my $weakness (@weakness_nodelist) {
+    die("multiple Weaknesses!  Help!") unless int(@weaknesses) == 1;
 
+    my $weakness = $weaknesses[0];
+
+    foreach my $attr ( $weakness->getAttributes() ) {
+        next unless $attr;
+        $results->{ $attr->getName() } = $attr->getNodeValue();
     }
 
-    return ( 'weakness_id' => {} );
+    foreach my $element ( $weakness->getChildNodes() ) {
+        my $nodeName = $element->getName();
+        next unless $nodeName;
+
+        $results->{$nodeName} = {};
+        my $data = $results->{$nodeName};
+
+        if ( $nodeName eq 'Description' ) {
+            foreach my $child ( $element->getChildNodes() ) {
+                my $_nodeName = $child->getName();
+                next unless $_nodeName;
+
+                if ( $_nodeName eq 'Description_Summary' ) {
+                    $data->{$_nodeName} = $child->string_value;
+                } elsif ( $_nodeName eq 'Extended_Description' ) {
+                    $data->{$_nodeName}
+                        = process_extended_description($child);
+                }else{
+									die "no handler for Description child named [$_nodeName]";
+								}
+            }
+        }else{
+					die "no handler for Weakness child named [$nodeName]";
+				}
+    }
+
+    return ( 'weakness_id' => $results );
+}
+
+sub process_extended_description {
+    my ($element) = @_;
+
+    my $results = [];
+
+    foreach my $child ( $element->getChildNodes() ) {
+        my $nodeName = $child->getName() or next;
+
+        if ( $nodeName eq 'Text' ) {
+            push( @$results, $child->string_value() );
+        } elsif ( $nodeName eq 'Block' ) {
+            my $block = [];
+            push( @$results, $block );
+						my $title = '';
+            foreach my $blockchild ( $child->getChildNodes() ) {
+                my $_nodeName = $blockchild->getName() or next;
+                if ( $_nodeName eq 'Text' ) {
+									if( $title ){
+										push( @$block, { title => $title, text => $blockchild->string_value() } );
+										undef $title;
+									}else{
+										push( @$block, $blockchild->string_value() );
+									}
+                } elsif( $_nodeName eq 'Text_Title' ){
+									$title = $blockchild->string_value();
+								}else{
+                    die "no handler for block child named [$_nodeName]";
+                }
+            }
+        }
+    }
 }
 
 sub process_view {
