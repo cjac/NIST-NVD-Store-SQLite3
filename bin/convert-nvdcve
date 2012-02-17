@@ -807,14 +807,14 @@ sub process_category {
     croak("there should be one and only one node")
         if int @category_nodelist != 1;
 
-    my $category_id = 'x';
-
     my $category = $category_nodelist[0];
 
     foreach my $attr ( $category->getAttributes() ) {
         next unless $attr;
         $results->{ $attr->getName() } = $attr->getNodeValue();
     }
+
+    my $category_id = $results->{ID};
 
     foreach my $element ( $category->getChildNodes() ) {
 
@@ -865,9 +865,43 @@ sub process_category {
                     print "\n} elsif ( \$int_name eq '$int_name' ) {\n\n";
                 }
             }
-
+            print "T";
         } elsif ( $nodeName eq 'Affected_Resources' ) {
+
+            foreach my $aff_node ( $element->getChildNodes ) {
+                my $aff_type = ref $aff_node;
+                my $aff_name = undef;
+                my $aff_str  = undef;
+
+                $aff_str = $aff_node->string_value()
+                    if $aff_node->can('string_value');
+
+                $aff_name = $aff_node->getName()
+                    if $aff_node->can('getName');
+
+                if ( $aff_type eq 'XML::XPath::Node::Text' ) {
+                    next unless defined $aff_str;
+                    next if $aff_str =~ /^\s*$/;
+                    die $aff_str;
+                } elsif ( $aff_name eq 'Affected_Resource' ) {
+                    if ( $aff_str eq 'File/Directory' ) {
+                        push( @{ $results->{$nodeName} }, $aff_str );
+                    } elsif ( $aff_str eq 'Memory' ) {
+                        push( @{ $results->{$nodeName} }, $aff_str );
+                    } elsif ( $aff_str eq 'System Process' ) {
+                        push( @{ $results->{$nodeName} }, $aff_str );
+                    } else {
+                        print "\n} elsif ( \$aff_str eq '$aff_str' ) {\n\n";
+                    }
+                } elsif ($aff_name) {
+                    print "\n} elsif ( \$aff_name eq '$aff_name' ) {\n\n";
+                }
+            }
+            print "A";
+
         } elsif ( $nodeName eq 'Applicable_Platforms' ) {
+
+            print "P";
 
         } elsif ( $nodeName eq 'Content_History' ) {
         } elsif ( $nodeName eq 'Relationships' ) {
@@ -895,7 +929,7 @@ sub process_category {
         }
     }
     print "c";
-    return ( 'category_id' => {} );
+    return ( $category_id => $results );
 }
 
 sub process_category_description {
