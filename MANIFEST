@@ -16,4 +16,5 @@ t/sqlite3.t
 t/update.t
 t/insert.t
 t/query.t
+t/cwe.t
 bin/convert-nvdcve
