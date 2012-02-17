@@ -75,7 +75,6 @@ $NVD_Updater->put_idx_cwe( \%weaknesses );
 
 print "Done.\n";
 
-
 sub process_nvd_file {
 
     my ($filename) = @_;
@@ -153,10 +152,10 @@ sub process_nvd {
                 my $cpe_urn ( @{ $entry->{'vuln:vulnerable-software-list'} } )
             {
                 push( @{ $vuln_software{$cpe_urn} }, $cve_id );
-            }
 
-            foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
-                push( @{ $weaknesses{$cve_id} }, $cwe_id );
+                foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
+                    push( @{ $weaknesses{$cpe_urn} }, $cwe_id );
+                }
             }
 
             $entry{$cve_id} = $entry;
@@ -435,11 +434,12 @@ sub process_cwe_file {
                 $content = $line;
 
                 next;
-            } elsif ( !$next_element ){
-						} elsif ( $current_element && $current_element ne $next_element )
+            } elsif ( !$next_element ) {
+            } elsif ( $current_element && $current_element ne $next_element )
             {
                 $content =~ s:</$parent_element{$current_element}>::;
-                $content =~ s:<$parent_element{$next_element}>:: if $next_element;
+                $content =~ s:<$parent_element{$next_element}>::
+                    if $next_element;
             }
 
             $content .= $tail;
