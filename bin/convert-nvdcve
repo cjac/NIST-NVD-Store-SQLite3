@@ -12,6 +12,9 @@ use Getopt::Long;
 
 my ( $nvd, $store, $cwe );
 
+my %done             = ();
+my %category_handler = ();
+
 my $result = GetOptions(
     "nvd=s"   => \$nvd,
     "cwe=s"   => \$cwe,
@@ -246,7 +249,7 @@ sub process_vuln_config {
         next unless $node->getName();
         my $nodeName = $node->getName();
 
-        die "}elsif( \$nodeName eq '$nodeName' ){\n"
+        die "\n}elsif( \$nodeName eq '$nodeName' ){\n"
             unless ( $nodeName eq 'cpe-lang:logical-test' );
 
         push( @{ $results->{$nodeName} }, process_cpe_logical_test($node) );
@@ -295,7 +298,7 @@ sub process_vuln_software_list {
         my $nodeName = $node->getName();
         next unless $nodeName;
 
-        die qq[}elsif( \$nodeName eq '$nodeName' ){]
+        die qq[\n}elsif( \$nodeName eq '$nodeName' ){]
             unless $nodeName eq 'vuln:product';
 
         push( @$results, $node->string_value() );
@@ -330,7 +333,7 @@ sub process_vuln_cvss {
                     = $metric->string_value();
             }
         } else {
-            die qq[}elsif( \$nodeName eq '$nodeName' ){];
+            die qq[\n}elsif( \$nodeName eq '$nodeName' ){];
         }
 
     }
@@ -504,8 +507,6 @@ sub process_cwe_file {
 
     return $CWE_Entry_HASH;
 }
-
-my %done = ();
 
 sub process_weakness {
     my ($weakness_xml) = @_;
@@ -787,8 +788,6 @@ sub process_view {
 sub process_category {
     my ($category_xml) = @_;
 
-    print "v";
-
     my $results = {};
 
     my $xp = eval { XML::XPath->new( xml => $category_xml ) };
@@ -833,36 +832,97 @@ sub process_category {
         }
 
         if ( $nodeName eq 'Description' ) {
-            foreach my $description_node ( $element->getChildNodes ) {
-                my $node_type = ref $description_node;
-                my $node_name = $description_node->getName()
-                    if $description_node->can('getName');
+            $results->{$nodeName} = process_category_description($element);
+            print "D";
+        } elsif ( $nodeName eq 'Content_History' ) {
+        } elsif ( $nodeName eq 'Relationships' ) {
+        } elsif ( $nodeName eq 'Taxonomy_Mappings' ) {
+        } elsif ( $nodeName eq 'Time_of_Introduction' ) {
+        } elsif ( $nodeName eq 'Related_Attack_Patterns' ) {
+        } elsif ( $nodeName eq 'Applicable_Platforms' ) {
+        } elsif ( $nodeName eq 'Other_Notes' ) {
+        } elsif ( $nodeName eq 'Potential_Mitigations' ) {
+        } elsif ( $nodeName eq 'References' ) {
+        } elsif ( $nodeName eq 'Maintenance_Notes' ) {
+        } elsif ( $nodeName eq 'Likelihood_of_Exploit' ) {
+        } elsif ( $nodeName eq 'Common_Consequences' ) {
+        } elsif ( $nodeName eq 'Demonstrative_Examples' ) {
+        } elsif ( $nodeName eq 'Affected_Resources' ) {
+        } elsif ( $nodeName eq 'White_Box_Definitions' ) {
+        } elsif ( $nodeName eq 'Relationship_Notes' ) {
+        } elsif ( $nodeName eq 'Theoretical_Notes' ) {
+        } elsif ( $nodeName eq 'Research_Gaps' ) {
+        } elsif ( $nodeName eq 'Functional_Areas' ) {
+        } elsif ( $nodeName eq 'Background_Details' ) {
+        } elsif ( $nodeName eq 'Observed_Examples' ) {
+        } elsif ( $nodeName eq 'Weakness_Ordinalities' ) {
 
-                if ( $node_type eq 'XML::XPath::Node::Text' ) {
-                    next if $str =~ /^\s*$/;
-                } elsif ( $node_type eq 'XML::XPath::Node::Element' ) {
-                } elsif ( $node_type eq 'XML::XPath::Node::ElementImpl' ) {
-                    die "$node_type";
-                } else {
-                    die "\n"
-                        . "type: [$node_type]\n"
-                        . "name: [$nodeName]" . "\n"
-                        . "value: [$str]" . "\n";
-                }
-
-                print "D";
-                push(
-                    @{ $results->{$nodeName} },
-                    $description_node->string_value()
-                );
-            }
         } else {
-
-            #die "} elsif ( \$nodename eq $nodename ) {";
+            print "\n} elsif ( \$nodeName eq '$nodeName' ) {\n\n"
+                unless $category_handler{$nodeName};
+            $category_handler{$nodeName}++;
         }
     }
     print "c";
     return ( 'category_id' => {} );
+}
+
+sub process_category_description {
+    my ($element) = @_;
+
+    my $result = [];
+    foreach my $description_node ( $element->getChildNodes ) {
+        my $node_type = ref $description_node;
+        my $node_name = undef;
+        $node_name = $description_node->getName()
+            if $description_node->can('getName');
+
+        if ( $node_type eq 'XML::XPath::Node::Text' ) {
+            my $description_str = $description_node->string_value()
+                if $description_node->can('string_value');
+            next if $description_str =~ /^\s*$/;
+        } elsif ( $node_name eq 'Description_Summary' ) {
+            push( @$result, process_description_summary($description_node) );
+        } elsif ( $node_name eq 'Extended_Description' ) {
+        } elsif ($node_name) {
+            print "} elsif ( \$node_name eq '$node_name' ) {\n\n";
+        } else {
+            print "} elsif ( \$node_type eq '$node_type' ) {\n\n";
+        }
+    }
+
+    return $result;
+}
+
+sub process_description_summary {
+
+    my ($description_node) = @_;
+
+    my $result;
+
+    foreach my $summary_node ( $description_node->getChildNodes ) {
+        my $s_node_type = ref $summary_node;
+        my $s_node_name = $summary_node->getName()
+            if $summary_node->can('getName');
+        my $s_node_str = $summary_node->string_value()
+            if $summary_node->can('string_value');
+
+        if ( $s_node_type eq 'XML::XPath::Node::Text' ) {
+            next if $s_node_str =~ /^\s*$/;
+
+        } elsif ( $s_node_name eq 'Description_Summary' ) {
+            next unless $s_node_str;
+            push( @$result, $s_node_str );
+        } else {
+            die "\n"
+                . "type: [$s_node_type]\n"
+                . "name: [$s_node_name]" . "\n"
+                . "value: [$s_node_str]" . "\n";
+        }
+    }
+
+    return $result;
+
 }
 
 sub process_compound_element {
