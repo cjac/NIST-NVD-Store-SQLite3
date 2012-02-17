@@ -261,6 +261,12 @@ sub get_cve {
 
 =head2 put_idx_cpe
 
+  my %vuln_software = ( $cpe_urn0 => [ $cve_id0,$cve_id42,... ],
+                        $cpe_urn1 => [ $cve_id1,$cve_id24,... ],
+  #                     ...,
+                        $cpe_urnN => [ $cve_id2,$cve_id3,... ],
+                       );
+  $Updater->put_idx_cpe( \%vuln_software );
 
 =cut
 
@@ -285,8 +291,9 @@ sub put_idx_cpe {
     $self->{sqlite}->commit();
 }
 
-=head2 put_idx_cpe
+=head2 put_idx_cwe
 
+  $NVD_Updater->put_idx_cwe( \%weaknesses );
 
 =cut
 
