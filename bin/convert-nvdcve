@@ -37,6 +37,19 @@ my $NVD_Updater = NIST::NVD::Update->new(
 my %vuln_software;
 my %weaknesses;
 
+my %close_regex = (
+    Views             => qr:</Views>:,
+    Categories        => qr:</Categories>:,
+    Weaknesses        => qr:</Weaknesses>:,
+    Compound_Elements => qr:</Compound_Elements>:,
+);
+my %open_regex = (
+    Views             => qr:<Views>:,
+    Categories        => qr:<Categories>:,
+    Weaknesses        => qr:<Weaknesses>:,
+    Compound_Elements => qr:<Compound_Elements>:,
+);
+
 $|++;
 
 print("reading NVDs from file: $nvd...");
@@ -374,22 +387,7 @@ sub process_vuln_scanner {
     return $results;
 }
 
-my %close_regex = (
-    Views             => qr:</Views>:,
-    Categories        => qr:</Categories>:,
-    Weaknesses        => qr:</Weaknesses>:,
-    Compound_Elements => qr:</Compound_Elements>:,
-);
-my %open_regex = (
-    Views             => qr:<Views>:,
-    Categories        => qr:<Categories>:,
-    Weaknesses        => qr:<Weaknesses>:,
-    Compound_Elements => qr:<Compound_Elements>:,
-);
-
-</$parent_element{$current_element}>
-
-    sub process_cwe_file {
+sub process_cwe_file {
 
     my ($filename) = @_;
 
@@ -452,9 +450,18 @@ my %open_regex = (
             } elsif ( !$next_element ) {
             } elsif ( $current_element && $current_element ne $next_element )
             {
-                $content
-                    =~ s:$close_regex{$parent_element{$current_element}}::;
-                $content =~ s:$open_regex{$parent_element{$next_element}}::;
+
+							die "close regex for [$parent_element{$current_element}] not defined"
+								unless exists $close_regex{$parent_element{$current_element}};
+
+							die "open regex for [$parent_element{$next_element}] not defined"
+								unless exists $open_regex{$parent_element{$next_element}};
+
+							my $cl_re = $close_regex{$parent_element{$current_element}};
+							my $op_re = $open_regex{$parent_element{$next_element}};
+
+							$content =~ s:$cl_re::;
+							$content =~ s:$op_re::;
             }
 
             $content .= $tail;
@@ -513,6 +520,10 @@ sub process_weakness {
 
     my @weakness_nodelist = grep { $_->getName && $_->getName eq 'Weakness' }
         $nodeset->get_nodelist;
+
+    foreach my $weakness (@weakness_nodelist) {
+
+    }
 
     return ( 'weakness_id' => {} );
 }
