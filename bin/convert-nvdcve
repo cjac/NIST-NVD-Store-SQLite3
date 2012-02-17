@@ -901,6 +901,104 @@ sub process_category {
 
         } elsif ( $nodeName eq 'Applicable_Platforms' ) {
 
+            foreach my $app_node ( $element->getChildNodes ) {
+                my $app_type = ref $app_node;
+                my $app_name = undef;
+                my $app_str  = undef;
+
+                $app_str = $app_node->string_value()
+                    if $app_node->can('string_value');
+
+                $app_name = $app_node->getName()
+                    if $app_node->can('getName');
+
+                if ( $app_type eq 'XML::XPath::Node::Text' ) {
+                    next unless defined $app_str;
+                    next if $app_str =~ /^\s*$/;
+                    die $app_str;
+                } elsif ( $app_name eq 'Languages' ) {
+
+                    my $language = {};
+                    push( @{ $results->{$app_name} }, $language );
+
+                    foreach my $lang_node ( $app_node->getChildNodes ) {
+                        my $lang_type = ref $lang_node;
+                        my $lang_name = undef;
+                        my $lang_str  = undef;
+
+                        $lang_str = $lang_node->string_value()
+                            if $lang_node->can('string_value');
+
+                        $lang_name = $lang_node->getName()
+                            if $lang_node->can('getName');
+
+                        if ( $lang_type eq 'XML::XPath::Node::Text' ) {
+                            next unless defined $lang_str;
+                            next if $lang_str =~ /^\s*$/;
+                            die $lang_str;
+
+                        } elsif ( $lang_name eq 'Language_Class'
+                            || $lang_name eq 'Language' )
+                        {
+                            foreach
+                                my $lang_attr ( $lang_node->getAttributes() )
+                            {
+                                next unless $lang_attr;
+                                $language->{$lang_name}
+                                    ->{ $lang_attr->getName() }
+                                    = $lang_attr->getNodeValue();
+                            }
+                        } else {
+                            print
+                                "\n} elsif ( \$lang_name eq '$lang_name' ) {\n\n"
+                                unless $category_handler{
+                                        "$nodeName $lang_name $lang_name"};
+                            $category_handler{
+                                "$nodeName $lang_name $lang_name"}++;
+                        }
+                    }
+
+                } elsif ( $app_name eq 'Operating_Systems' ) {
+                    my $os = {};
+                    push( @{ $results->{$app_name} }, $os );
+
+                    foreach my $os_node ( $app_node->getChildNodes ) {
+                        my $os_type = ref $os_node;
+                        my $os_name = undef;
+                        my $os_str  = undef;
+
+                        $os_str = $os_node->string_value()
+                            if $os_node->can('string_value');
+
+                        $os_name = $os_node->getName()
+                            if $os_node->can('getName');
+
+                        if ( $os_type eq 'XML::XPath::Node::Text' ) {
+                            next unless defined $os_str;
+                            next if $os_str =~ /^\s*$/;
+                            die $os_str;
+
+                        } elsif ( $os_name eq 'Operating_System_Class' ) {
+                            foreach my $os_attr ( $os_node->getAttributes() )
+                            {
+                                next
+                                    unless $os_attr;
+                                $os->{$os_name}->{ $os_attr->getName() }
+                                    = $os_attr->getNodeValue();
+                            }
+                        } else {
+                            print
+                                "\n} elsif ( \$os_name eq '$os_name' ) {\n\n"
+                                unless $category_handler{
+                                        "$nodeName $os_name $os_name"};
+                            $category_handler{
+                                "$nodeName $os_name $os_name"}++;
+                        }
+                    }
+                } elsif ($app_name) {
+                    print "\n} elsif ( \$app_name eq '$app_name' ) {\n\n";
+                }
+            }
             print "P";
 
         } elsif ( $nodeName eq 'Content_History' ) {
