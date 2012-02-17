@@ -56,13 +56,21 @@ print("reading NVDs from file: $nvd...");
 
 my $nvd_entries = process_nvd_file($nvd);
 
-printf( "read \%i entries\n", int keys $nvd_entries );
+print "Done.\n";
+
+printf( "read \%i nvd entries\n", int keys $nvd_entries );
 
 print "Processing CWE file...";
 
 my $cwe_data = process_cwe_file($cwe);
 
 print "Done.\n";
+
+printf( "read \%i cwe Views\n", int keys $cwe_data->{View} );
+printf( "read \%i cwe Categories\n", int keys $cwe_data->{Category} );
+printf( "read \%i cwe Weaknesses\n", int keys $cwe_data->{Weakness} );
+printf( "read \%i cwe Compound Elements\n", int keys $cwe_data->{Compound_Element} );
+
 
 print "Writing CPE URNs to disk...";
 
@@ -96,8 +104,6 @@ sub process_nvd_file {
 
     my $content;
 
-    my $iter = 0;
-
     my $header;
     my $entry_body;
     my $footer = '</nvd>';
@@ -123,7 +129,6 @@ sub process_nvd_file {
                     $NVD_Entry_HASH->{$cve_id} = $entry;
                 }
 
-                $iter++;
             } else {
                 $header = $content;
             }
@@ -448,18 +453,8 @@ sub process_cwe_file {
 
                 next;
             } elsif ( !$next_element ) {
-            } elsif ( $current_element && $current_element ne $next_element )
+            } elsif ( $current_element ne $next_element )
             {
-
-                die
-                    "close regex for [$parent_element{$current_element}] not defined"
-                    unless
-                    exists $close_regex{ $parent_element{$current_element} };
-
-                die
-                    "open regex for [$parent_element{$next_element}] not defined"
-                    unless
-                    exists $open_regex{ $parent_element{$next_element} };
 
                 my $cl_re = $close_regex{ $parent_element{$current_element} };
                 my $op_re = $open_regex{ $parent_element{$next_element} };
@@ -488,9 +483,7 @@ sub process_cwe_file {
             my %cwe = $function->($xml_string);
 
             while ( my ( $id, $element ) = each %cwe ) {
-
-                #                $CWE_Entry_HASH->{" ${lcelement} _ $id
-                #                "} = $element;
+							$CWE_Entry_HASH->{$current_element}->{$id} = $element;
             }
 
             $iter++;
@@ -510,6 +503,7 @@ sub process_cwe_file {
 
     }
 
+		return $CWE_Entry_HASH;
 }
 
 my %done = ();
@@ -536,6 +530,8 @@ sub process_weakness {
         next unless $attr;
         $results->{ $attr->getName() } = $attr->getNodeValue();
     }
+
+		
 
     foreach my $element ( $weakness->getChildNodes() ) {
         my $nodeName = $element->getName();
@@ -618,7 +614,7 @@ sub process_weakness {
         }
     }
 
-    return ( 'weakness_id' => $results );
+    return ( $results->{ID} => $results );
 }
 
 sub process_extended_description {
@@ -678,7 +674,6 @@ sub process_common_consequences {
             } elsif ( $nodeName eq 'Consequence_Technical_Impact' ) {
                 push( @{ $con->{technical_impact} }, $child->string_value() );
             } elsif ( $nodeName eq 'Consequence_Note' ) {
-                my $count = 0;
                 foreach my $note ( $child->getChildNodes() ) {
                     my $_nodeName = $note->getName();
                     next unless $_nodeName;
@@ -712,7 +707,6 @@ sub process_common_consequences {
                         $done{"consequence note $_nodeName"}++;
 
                     }
-                    $count++;
                 }
             } else {
                 print "\n} elsif ( \$nodeName eq '$nodeName' ) {\n"
@@ -789,26 +783,9 @@ sub process_view {
         }
     }
 
-    return ( $view_id => {} );
+    return ( $results->{ID} => $results );
 }
 
-sub process_views {
-    my ($xml) = @_;
-    print "v";
-
-    my $xp = XML::XPath->new( xml => $xml );
-
-    my $nodeset = $xp->find('//View');
-
-    my @view_nodelist = grep { $_->getName && $_->getName eq 'View' }
-        $nodeset->get_nodelist;
-
-    foreach my $view_node (@view_nodelist) {
-        my $view = process_view($view_node);
-    }
-
-    return ( 'view_id' => {} );
-}
 
 sub process_category {
     print "c";
