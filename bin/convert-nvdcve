@@ -559,8 +559,10 @@ sub process_weakness {
                 }
             }
         } elsif ( $nodeName eq 'Relationships' ) {
-            $data->{$nodeName} = process_relationships($element);
+
+            #$data->{$nodeName} = process_relationships($element);
         } elsif ( $nodeName eq 'Common_Consequences' ) {
+            $data->{$nodeName} = process_common_consequences($element);
         } elsif ( $nodeName eq 'Weakness_Ordinalities' ) {
         } elsif ( $nodeName eq 'Applicable_Platforms' ) {
         } elsif ( $nodeName eq 'Time_of_Introduction' ) {
@@ -582,6 +584,25 @@ sub process_weakness {
         } elsif ( $nodeName eq 'Alternate_Terms' ) {
         } elsif ( $nodeName eq 'Terminology_Notes' ) {
         } elsif ( $nodeName eq 'Likelihood_of_Exploit' ) {
+
+            my $likelihood = $element->string_value;
+            my $value;
+            my %rating = (
+                'Very High'         => 1,
+                'High to Very High' => 2,
+                'High'              => 3,
+                'Medium to High'    => 4,
+                'Medium'            => 5,
+                'Low to Medium'     => 6,
+                'Low'               => 7,
+                'Very Low'          => 8,
+            );
+
+            print "likelihood value '$likelihood' not accounted for\n"
+                unless exists $rating{$likelihood};
+
+            $data->{$nodeName} = $rating{$likelihood};
+
         } elsif ( $nodeName eq 'Detection_Methods' ) {
         } elsif ( $nodeName eq 'Functional_Areas' ) {
         } elsif ( $nodeName eq 'White_Box_Definitions' ) {
@@ -640,6 +661,68 @@ sub process_extended_description {
 
 sub process_relationships {
 
+}
+
+sub process_common_consequences {
+    my ($element) = @_;
+
+    my $result = [];
+    foreach my $consequence ( $element->getChildNodes() ) {
+        my $con = {};
+        push( @$result, $con );
+        foreach my $child ( $consequence->getChildNodes() ) {
+            my $nodeName = $child->getName();
+            next unless $nodeName;
+            if ( $nodeName eq 'Consequence_Scope' ) {
+                push( @{ $con->{scope} }, $child->string_value() );
+            } elsif ( $nodeName eq 'Consequence_Technical_Impact' ) {
+                push( @{ $con->{technical_impact} }, $child->string_value() );
+            } elsif ( $nodeName eq 'Consequence_Note' ) {
+                my $count = 0;
+                foreach my $note ( $child->getChildNodes() ) {
+                    my $_nodeName = $note->getName();
+                    next unless $_nodeName;
+
+                    if ( $_nodeName eq 'Text' ) {
+                        push( @{ $con->{note} }, $note->string_value );
+                    } elsif ( $_nodeName eq 'Block' ) {
+											my $block = {};
+
+											foreach my $attr ( $note->getAttributes() ) {
+												if($attr->getName() eq 'Block_Nature'){
+													my $attrVal = $attr->getNodeValue();
+													if( $attrVal eq 'List' ){
+														$block = [];
+														foreach my $txt ( $note->getChildNodes() ){
+															my $nm = $txt->getName();
+															next unless $nm;
+															die "element type [$nm] not accounted for" unless $nm eq 'Text';
+															push(@$block, $txt->string_value());
+														}
+													}else{
+														print "\n} elsif ( \$attrVal eq '$attrVal' ) {\n";
+													}
+												}
+											}
+											push(@{ $con->{note} }, $block);
+                    } else {
+											print "\n} elsif ( \$_nodeName eq '$_nodeName' ) {\n"
+                            unless
+                            exists $done{"consequence note $_nodeName"};
+                        $done{"consequence note $_nodeName"}++;
+
+                    }
+                    $count++;
+                }
+            } else {
+                print "\n} elsif ( \$nodeName eq '$nodeName' ) {\n"
+                    unless exists $done{"consequences $nodeName"};
+
+                $done{"consequences $nodeName"}++;
+            }
+        }
+    }
+    return $result;
 }
 
 sub process_view {
