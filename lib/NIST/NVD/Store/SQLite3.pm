@@ -91,7 +91,11 @@ SELECT id FROM cve WHERE cve.cve_id=?
     get_cve_select => qq{
 SELECT cve_dump FROM cve WHERE cve.cve_id=?
 },
-    put_idx_cpe_insert => qq{
+    put_cve_idx_cpe_insert => qq{
+INSERT INTO cpe_cve_map (cpe_id,cve_id)
+VALUES ( ?, ? )
+},
+    put_cwe_idx_cpe_insert => qq{
 INSERT INTO cpe_cve_map (cpe_id,cve_id)
 VALUES ( ?, ? )
 },
@@ -102,6 +106,14 @@ INSERT INTO cve ( cve_dump, cve_id ) VALUES (?, ?)
 
     put_cve_update => qq{
 UPDATE cve SET cve_dump=? WHERE cve.id=?
+},
+
+    put_cwe_insert => qq{
+INSERT INTO cwe ( cwe_dump, cwe_id ) VALUES (?, ?)
+},
+
+    put_cwe_update => qq{
+UPDATE cwe SET cwe_dump=? WHERE cwe.id=?
 },
 
     put_cpe_insert => qq{
@@ -139,9 +151,16 @@ sub new {
     $self->{sqlite} = $self->_connect_db( database => $args{database} );
 
     foreach my $statement (
-        qw( put_cpe_insert cve_for_cpe_select put_idx_cpe_insert
-        put_cve_insert put_cve_update get_cpe_id_select
-        get_cve_id_select get_cve_select )
+        qw( put_cpe_insert
+        cve_for_cpe_select cwe_for_cpe_select
+        put_cve_idx_cpe_insert
+        put_cwe_idx_cpe_insert
+        put_cve_insert put_cve_update
+        put_cwe_insert put_cwe_update
+        get_cpe_id_select
+        get_cve_id_select get_cve_select
+        get_cwe_id_select get_cwe_select
+        )
         )
     {
         $sth{$statement} = $self->{sqlite}->prepare( $query{$statement} );
@@ -183,13 +202,14 @@ my $cpe_urn_re = qr{^(cpe:/(.)(:[^:]+){2,6})$};
 sub get_cve_for_cpe {
     my ( $self, %args ) = @_;
 
-    ( my ( $cpe, @parts ) ) = ( $args{cpe} =~ $cpe_urn_re );
+    my $cpe = $args{cpe};
 
     my $cpe_pkey_id;
-    if ( $cpe =~ /^cpe/ ) {
-        $cpe_pkey_id = $self->_get_cpe_id($cpe);
-    } else {
+    if ( $cpe =~ /^\d+$/ ) {
         $cpe_pkey_id = $cpe;
+    } else {
+        ( my ( $cpe, @parts ) ) = ( $args{cpe} =~ $cpe_urn_re );
+        $cpe_pkey_id = $self->_get_cpe_id($cpe);
     }
 
     $sth{cve_for_cpe_select}->execute($cpe_pkey_id);
@@ -257,6 +277,35 @@ sub _get_cve_id {
 
     return;
 }
+
+sub _get_cwe_id {
+    my ( $self, $cwe_id ) = @_;
+
+    return $self->{cwe_map}->{$cwe_id}
+        if ( exists $self->{cwe_map}->{$cwe_id} );
+
+    $sth{get_cwe_id_select}->execute($cwe_id);
+
+    #    print STDERR "getting pkey for cwe id [$cwe_id]\n";
+
+    # TODO: Assert that this query returns zero or one result
+    my $rows = 0;
+    while ( my $row = $sth{get_cwe_id_select}->fetchrow_hashref() ) {
+        print STDERR
+            "multiple ($rows) results for value intended to be unique.  cwe_id: [$cwe_id]\n"
+            if ( $rows != 0 );
+
+        $rows++;
+
+        $self->{cwe_map}->{$cwe_id} = $row->{id};
+    }
+
+    return $self->{cwe_map}->{$cwe_id}
+        if ( exists $self->{cwe_map}->{$cwe_id} );
+
+    return;
+}
+
 
 sub _get_cpe_id {
     my ( $self, $cpe_urn ) = @_;
@@ -331,20 +380,20 @@ sub get_cve {
     return $entry;
 }
 
-=head2 put_idx_cpe
+=head2 put_cve_idx_cpe
 
   my %vuln_software = ( $cpe_urn0 => [ $cve_id0,$cve_id42,... ],
                         $cpe_urn1 => [ $cve_id1,$cve_id24,... ],
   #                     ...,
                         $cpe_urnN => [ $cve_id2,$cve_id3,... ],
                        );
-  $Updater->put_idx_cpe( \%vuln_software );
+  $Updater->put_cve_idx_cpe( \%vuln_software );
 
 =cut
 
-my %uniq_idx_cpe;
+my %uniq_cve_idx_cpe;
 
-sub put_idx_cpe {
+sub put_cve_idx_cpe {
     my ( $self, $vuln_software ) = @_;
 
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
@@ -354,25 +403,47 @@ sub put_idx_cpe {
         my (@cve_pkey_id) = map { $self->_get_cve_id($_) } @$cve_id;
 
         foreach my $cve_pkey_id (@cve_pkey_id) {
-            next if $uniq_idx_cpe{$cpe_pkey_id}->{$cve_pkey_id}++;
+            next if $uniq_cve_idx_cpe{$cpe_pkey_id}->{$cve_pkey_id}++;
 
-            $sth{put_idx_cpe_insert}->execute( $cpe_pkey_id, $cve_pkey_id );
+            $sth{put_cve_idx_cpe_insert}
+                ->execute( $cpe_pkey_id, $cve_pkey_id );
         }
     }
 
     $self->{sqlite}->commit();
 }
 
-=head2 put_idx_cwe
+=head2 put_cwe_idx_cpe
 
-  $NVD_Updater->put_idx_cwe( \%weaknesses );
+  my %vuln_software = ( $cpe_urn0 => [ $cwe_id0,$cwe_id42,... ],
+                        $cpe_urn1 => [ $cwe_id1,$cwe_id24,... ],
+  #                     ...,
+                        $cpe_urnN => [ $cwe_id2,$cwe_id3,... ],
+                       );
+  $Updater->put_cwe_idx_cpe( \%weaknesses );
 
 =cut
 
-my %uniq_idx_cwe;
+my %uniq_cwe_idx_cpe;
 
-sub put_idx_cwe {
+sub put_cwe_idx_cpe {
     my ( $self, $weaknesses ) = @_;
+
+    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
+
+    while ( my ( $cpe_urn, $cwe_id ) = ( each %$weaknesses ) ) {
+        my $cpe_pkey_id = $self->_get_cpe_id($cpe_urn);
+        my (@cwe_pkey_id) = map { $self->_get_cwe_id($_) } @$cwe_id;
+
+        foreach my $cwe_pkey_id (@cwe_pkey_id) {
+            next if $uniq_cwe_idx_cpe{$cpe_pkey_id}->{$cwe_pkey_id}++;
+
+            $sth{put_cwe_idx_cpe_insert}
+                ->execute( $cpe_pkey_id, $cwe_pkey_id );
+        }
+    }
+
+    $self->{sqlite}->commit();
 
     return;
 }
@@ -422,6 +493,15 @@ sub put_cpe {
 =cut
 
 sub put_cve {
+
+}
+
+=head2 put_cwe
+
+
+=cut
+
+sub put_cwe {
 
 }
 
