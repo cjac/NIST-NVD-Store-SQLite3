@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use Data::Dumper;
 use Test::More tests => 16;
 use FindBin qw($Bin);
 
@@ -55,17 +56,27 @@ foreach my $method (qw{cve_for_cpe cwe_for_cpe}) {
 
     ok( $query, "query [$query_name] is defined" ) or diag $query_name;
 
-		my $sth = $q->{store}->_get_sth($query_name);
+    my $sth = $q->{store}->_get_sth($query_name);
 
-		$sth->execute($cpe_pkid);
+    $sth->execute($cpe_pkid);
+
+    my @row;
+    while ( my $row = $sth->fetchrow_hashref() ) {
+        push( @row, $row );
+    }
+
+    ok( int(@row) != 0, 'direct query returned > 0 results' )
+        or diag Data::Dumper::Dumper {
+        query => $query_ref->{$query_name},
+        id    => $cpe_pkid
+        };
 
     my $object_list = $q->$method( cpe => $cpe_urn );
 
     is( ref $object_list, 'ARRAY', "[$method] returned ARRAY ref" )
         or diag $query;
 
-    ok( int(@$object_list) > 0,
-        'more than 0 results for method [$method]' )
+    ok( int(@$object_list) > 0, "more than 0 results for method [$method]" )
         or diag "\$->$method( cpe => $cpe_urn )";
 }
 
