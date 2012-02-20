@@ -100,13 +100,13 @@ print " Done.\n";
 
 print "Writing CPE index to disk...";
 
-$NVD_Updater->put_idx_cpe( \%vuln_software );
+$NVD_Updater->put_cve_idx_cpe( \%vuln_software );
 
 print "Done.\n";
 
 print "Writing CWE index to disk...";
 
-$NVD_Updater->put_idx_cwe( \%weaknesses );
+$NVD_Updater->put_cwe_idx_cpe( \%weaknesses );
 
 print "Done.\n";
 
