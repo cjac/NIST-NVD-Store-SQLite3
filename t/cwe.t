@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 10;
+use Test::More tests => 16;
 use FindBin qw($Bin);
 
 ( my $test_dir ) = $Bin =~ m:^(.*?/t)$:;
@@ -32,14 +32,42 @@ my ( $cve_id_list, $cwe_id_list );
 #my $cpe_urn = 'cpe:/a:microsoft:ie:7.0.5730.11';
 my $cpe_urn = 'cpe:/a:apple:safari:4.0';
 
-$cve_id_list = $q->cve_for_cpe( cpe => $cpe_urn );
-$cve_id_list = $q->cwe_for_cpe( cpe => $cpe_urn );
+my $cpe_pkid = $q->{store}->_get_cpe_id($cpe_urn);
 
-is( ref $cve_id_list, 'ARRAY', 'cve_for_cpe returned ARRAY ref' ) or diag '';
-is( ref $cwe_id_list, 'ARRAY', 'cwe_for_cpe returned ARRAY ref' );
+ok( $cpe_pkid, 'got PK ID for cpe urn' );
 
-is( int(@$cwe_id_list), 2, 'correct number of CWEs returned for this CPE' )
-    or diag "cwe_for_cpe( cpe => $cpe_urn )";
+my $cve_id = $q->{store}->get_cve_for_cpe( cpe => $cpe_pkid );
+
+my $query_ref = $q->{store}->_get_query();
+
+my %result_count = (
+    cve_for_cpe => 2,
+    cwe_for_cpe => 42,
+);
+
+foreach my $method (qw{cve_for_cpe cwe_for_cpe}) {
+
+    my $query_name = "${method}_select";
+
+    ok( exists $query_ref->{$query_name}, "query [$query_name] exists" );
+
+    my $query = $query_ref->{$query_name};
+
+    ok( $query, "query [$query_name] is defined" ) or diag $query_name;
+
+		my $sth = $q->{store}->_get_sth($query_name);
+
+		$sth->execute($cpe_pkid);
+
+    my $object_list = $q->$method( cpe => $cpe_urn );
+
+    is( ref $object_list, 'ARRAY', "[$method] returned ARRAY ref" )
+        or diag $query;
+
+    ok( int(@$object_list) > 0,
+        'more than 0 results for method [$method]' )
+        or diag "\$->$method( cpe => $cpe_urn )";
+}
 
 foreach my $cve_entry (@$cve_id_list) {
     like( $cve_entry, qr{^CVE-\d{4,}-\d{4}$}, 'format of CVE ID is correct' );

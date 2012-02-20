@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 19;
+use Test::More tests => 20;
 use Test::File;
 use File::MMagic;
 use File::LibMagic;
@@ -13,9 +13,9 @@ use Cwd;
 
 use NIST::NVD::Query;
 
-( my $dist_dir ) =
-  ( Cwd::realpath( File::Spec->catfile( $Bin, '..' ) ) =~
-      m:^(.*NIST-NVD-Store-SQLite3)$: );
+( my $dist_dir )
+    = ( Cwd::realpath( File::Spec->catfile( $Bin, '..' ) )
+        =~ m:^(.*NIST-NVD-Store-SQLite3)$: );
 
 ok( -d $dist_dir, '$dist_dir is a directory' );
 
@@ -27,8 +27,8 @@ my $data_dir = File::Spec->catfile( $test_dir, 'data' );
 
 ok( -d $data_dir, '$data_dir is a directory' );
 
-my $convert_script =
-  File::Spec->catfile( $dist_dir, 'blib', 'script', 'convert-nvdcve' );
+my $convert_script
+    = File::Spec->catfile( $dist_dir, 'blib', 'script', 'convert-nvdcve' );
 
 ok( -f $convert_script, '$convert_script is a file' );
 
@@ -53,9 +53,16 @@ chdir($data_dir);
 
 $ENV{PERL5LIB} = File::Spec->catfile( $dist_dir, 'blib', 'lib' );
 
-my $cmd = "$convert_script --nvd $nvd_source_file --cwe $cwe_source_file --store SQLite3 2>&1";
+my $cmd
+    = "$convert_script --nvd $nvd_source_file --cwe $cwe_source_file --store SQLite3 2>&1";
 diag "running $cmd";
-my $output = `$cmd`;
+my $start_run = time();
+my $output    = `$cmd`;
+my $end_run   = time();
+my $duration  = $end_run - $start_run;
+
+ok( $duration <= 15,
+    'took less than 15 seconds to load CWE data: ' . $duration );
 
 is( $?, 0, 'conversion script returned cleanly' ) or diag $output;
 file_exists_ok( $db_file, 'database file exists' );
@@ -71,18 +78,17 @@ my ( $type, $fh, $data ) = ('application/octet-stream');
 
 is( $res, $type, "file is correct type: [$type]" ) or diag $res;
 
-my (
-    $dev,  $ino,   $mode,  $nlink, $uid,     $gid, $rdev,
+my ($dev,  $ino,   $mode,  $nlink, $uid,     $gid, $rdev,
     $size, $atime, $mtime, $ctime, $blksize, $blocks
 ) = stat($db_file);
 
 my $nowish = time();
 
 ok( $nowish - $mtime <= 1, '$mtime is close' )
-  or diag "off by " . $nowish - $mtime;
+    or diag "off by " . $nowish - $mtime;
 
 open( $fh, q{<}, $db_file )
-  or die "couldn't open file '$db_file': $!";
+    or die "couldn't open file '$db_file': $!";
 
 ok( $fh, 'opened database file for reading' );
 
@@ -100,8 +106,7 @@ is( $type, 'application/octet-stream',
 my $flm = File::LibMagic->new();
 
 $type = $flm->describe_filename($db_file);
-is(
-    $type,
+is( $type,
     'SQLite 3.x database',
     "file contents indicate correct type: [$type]"
 );
@@ -110,8 +115,7 @@ my $q;
 
 $ENV{PERL5LIB} = File::Spec->catfile( $dist_dir, 'blib', 'lib' );
 
-$q =
-  NIST::NVD::Query->new( store => 'SQLite3', database => $db_file, );
+$q = NIST::NVD::Query->new( store => 'SQLite3', database => $db_file, );
 
 is( ref $q, 'NIST::NVD::Query',
     'constructor returned an object of correct class' );

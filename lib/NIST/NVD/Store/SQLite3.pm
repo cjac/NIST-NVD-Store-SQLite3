@@ -60,13 +60,27 @@ CREATE TABLE IF NOT EXISTS cpe_cve_map (
   cve_id INTEGER,
   CONSTRAINT uniq_cpe_cve UNIQUE ( cpe_id, cve_id ) ON CONFLICT IGNORE
 )},
+    cpe_cwe_map_create => qq{
+CREATE TABLE IF NOT EXISTS cpe_cwe_map (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
 
+  cpe_id INTEGER,
+  cwe_id INTEGER,
+  CONSTRAINT uniq_cpe_cwe UNIQUE ( cpe_id, cwe_id ) ON CONFLICT IGNORE
+)},
     cve_for_cpe_select => qq{
 SELECT cve.cve_id
   FROM cpe_cve_map,cve
  WHERE cpe_cve_map.cpe_id=?
    AND cpe_cve_map.cve_id=cve.id
 ORDER BY cve.cve_id
+},
+    cwe_for_cpe_select => qq{
+SELECT cwe.cwe_id
+  FROM cpe_cwe_map,cwe
+ WHERE cpe_cwe_map.cpe_id=?
+   AND cpe_cwe_map.cwe_id=cwe.id
+ORDER BY cwe.cwe_id
 },
     get_cpe_id_select => qq{
 SELECT id FROM cpe WHERE cpe.urn=?
@@ -144,7 +158,12 @@ sub _connect_db {
 
     my $dbh = DBI->connect( "dbi:SQLite:dbname=$args{database}", "", "" );
 
-    foreach my $statement (qw(cpe_create cve_create cpe_cve_map_create)) {
+    foreach my $statement (
+        qw(cpe_create
+        cve_create cpe_cve_map_create
+        cwe_create cpe_cwe_map_create)
+        )
+    {
 
         my $query = $query{$statement};
 
@@ -159,12 +178,12 @@ sub _connect_db {
 
 =cut
 
-my $cpe_urn_re = qr{^(cpe:/.(:?:[^:]+){2,6})$};
+my $cpe_urn_re = qr{^(cpe:/(.)(:[^:]+){2,6})$};
 
 sub get_cve_for_cpe {
     my ( $self, %args ) = @_;
 
-    ( my $cpe ) = ( $args{cpe} =~ $cpe_urn_re );
+    ( my ( $cpe, @parts ) ) = ( $args{cpe} =~ $cpe_urn_re );
 
     my $cpe_pkey_id;
     if ( $cpe =~ /^cpe/ ) {
@@ -182,6 +201,33 @@ sub get_cve_for_cpe {
     }
 
     return $cve_id;
+}
+
+=head2 get_cwe_for_cpe
+
+=cut
+
+sub get_cwe_for_cpe {
+    my ( $self, %args ) = @_;
+
+    ( my $cpe ) = ( $args{cpe} =~ $cpe_urn_re );
+
+    my $cpe_pkey_id;
+    if ( $cpe =~ /^cpe/ ) {
+        $cpe_pkey_id = $self->_get_cpe_id($cpe);
+    } else {
+        $cpe_pkey_id = $cpe;
+    }
+
+    $sth{cwe_for_cpe_select}->execute($cpe_pkey_id);
+
+    my $cwe_id = [];
+
+    while ( my $row = $sth{cwe_for_cpe_select}->fetchrow_hashref() ) {
+        push( @$cwe_id, $row->{'cwe_id'} );
+    }
+
+    return $cwe_id;
 }
 
 sub _get_cve_id {
@@ -212,10 +258,6 @@ sub _get_cve_id {
     return;
 }
 
-=head2 _get_cpe_id
-
-=cut
-
 sub _get_cpe_id {
     my ( $self, $cpe_urn ) = @_;
 
@@ -234,6 +276,36 @@ sub _get_cpe_id {
     }
 
     return $self->{cpe_map}->{$cpe_urn};
+}
+
+sub _get_query {
+    my ( $self, $query_name ) = @_;
+
+    return $query{$query_name}
+        if ($query_name);
+
+    return %query if wantarray;
+
+    return \%query;
+}
+
+sub _get_sth {
+    my ( $self, $query_name ) = @_;
+
+    return unless exists $query{$query_name};
+
+    if ($query_name) {
+        $sth{$query_name} //= $self->{sqlite}->prepare( $query{$query_name} );
+        return $sth{$query_name};
+    }
+
+    return %sth if wantarray;
+
+    return \%sth;
+}
+
+sub _prepare {
+
 }
 
 =head2 get_cve
@@ -300,11 +372,10 @@ sub put_idx_cpe {
 my %uniq_idx_cwe;
 
 sub put_idx_cwe {
-	my ( $self, $weaknesses ) = @_;
+    my ( $self, $weaknesses ) = @_;
 
-	return;
+    return;
 }
-
 
 =head2 put_cpe
 
