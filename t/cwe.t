@@ -46,6 +46,11 @@ my %result_count = (
     cwe_for_cpe => 42,
 );
 
+my %pkid_field_name = (
+    cve_for_cpe => 'cve_id',
+    cwe_for_cpe => 'cwe_id',
+);
+
 foreach my $method (qw{cve_for_cpe cwe_for_cpe}) {
 
     my $query_name = "${method}_select";
@@ -60,9 +65,12 @@ foreach my $method (qw{cve_for_cpe cwe_for_cpe}) {
 
     $sth->execute($cpe_pkid);
 
+    my $direct_object_list = [];
     my @row;
     while ( my $row = $sth->fetchrow_hashref() ) {
-        push( @row, $row );
+        push( @row,                 $row );
+        push( @$direct_object_list, $row->{ $pkid_field_name{$method} } );
+				diag( Data::Dumper::Dumper $row );
     }
 
     ok( int(@row) != 0, 'direct query returned > 0 results' )
