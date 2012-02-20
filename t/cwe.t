@@ -7,8 +7,8 @@ use FindBin qw($Bin);
 
 ( my $test_dir ) = $Bin =~ m:^(.*?/t)$:;
 
-( my $data_dir )     = "$test_dir/data"                  =~ m:^(.*/data)$:;
-( my $db_file )      = "$data_dir/nvdcve-2.0.db"         =~ /^(.*db)$/;
+( my $data_dir ) = "$test_dir/data"          =~ m:^(.*/data)$:;
+( my $db_file )  = "$data_dir/nvdcve-2.0.db" =~ /^(.*db)$/;
 
 BEGIN {
     use_ok('NIST::NVD::Query') || print "Bail out!";
@@ -18,26 +18,28 @@ BEGIN {
 
 my $q;
 
-$q =
-  eval { NIST::NVD::Query->new( store => 'SQLite3', database => $db_file, ); };
+$q = eval {
+    NIST::NVD::Query->new( store => 'SQLite3', database => $db_file, );
+};
 
 ok( !$@, "no error" ) or diag $@;
 
 is( ref $q, 'NIST::NVD::Query',
     'constructor returned an object of correct class' );
 
-my( $cve_id_list, $cwe_id_list );
+my ( $cve_id_list, $cwe_id_list );
 
-my $cpe_urn = 'cpe:/a:microsoft:ie:7.0.5730.11';
+#my $cpe_urn = 'cpe:/a:microsoft:ie:7.0.5730.11';
+my $cpe_urn = 'cpe:/a:apple:safari:4.0';
 
 $cve_id_list = $q->cve_for_cpe( cpe => $cpe_urn );
 $cve_id_list = $q->cwe_for_cpe( cpe => $cpe_urn );
 
-is( ref $cve_id_list, 'ARRAY', 'cve_for_cpe returned ARRAY ref' );
+is( ref $cve_id_list, 'ARRAY', 'cve_for_cpe returned ARRAY ref' ) or diag '';
 is( ref $cwe_id_list, 'ARRAY', 'cwe_for_cpe returned ARRAY ref' );
 
 is( int(@$cwe_id_list), 2, 'correct number of CWEs returned for this CPE' )
-	or diag "cwe_for_cpe( cpe => $cpe_urn )";
+    or diag "cwe_for_cpe( cpe => $cpe_urn )";
 
 foreach my $cve_entry (@$cve_id_list) {
     like( $cve_entry, qr{^CVE-\d{4,}-\d{4}$}, 'format of CVE ID is correct' );
@@ -63,8 +65,7 @@ my $cvss = $entry->{'vuln:cvss'};
 
 is_deeply(
     $cvss,
-    {
-        'cvss:base_metrics' => {
+    {   'cvss:base_metrics' => {
             'cvss:confidentiality-impact' => 'PARTIAL',
             'cvss:score'                  => '4.3',
             'cvss:authentication'         => 'NONE',
