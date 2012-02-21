@@ -61,8 +61,8 @@ my $output    = `$cmd`;
 my $end_run   = time();
 my $duration  = $end_run - $start_run;
 
-ok( $duration <= 15,
-    'took less than 15 seconds to load CWE data: ' . $duration );
+ok( $duration <= 20,
+    'took less than 20 seconds to load CWE data: ' . $duration );
 
 is( $?, 0, 'conversion script returned cleanly' ) or diag $output;
 file_exists_ok( $db_file, 'database file exists' );

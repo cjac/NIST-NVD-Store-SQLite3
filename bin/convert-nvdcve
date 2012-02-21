@@ -98,6 +98,12 @@ $NVD_Updater->put_nvd_entries($nvd_entries);
 
 print " Done.\n";
 
+print "Writing CWE data to disk...";
+
+$NVD_Updater->put_cwe_data($cwe_data);
+
+print " Done.\n";
+
 print "Writing CPE index to disk...";
 
 $NVD_Updater->put_cve_idx_cpe( \%vuln_software );
@@ -186,6 +192,7 @@ sub process_nvd {
                 push( @{ $vuln_software{$cpe_urn} }, $cve_id );
 
                 foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
+                    next unless $cwe_id;
                     push( @{ $weaknesses{$cpe_urn} }, $cwe_id );
                 }
             }
@@ -410,7 +417,7 @@ sub process_cwe_file {
 
     my ($filename) = @_;
 
-    my ($CWE_Entry_HASH) = {};
+    my $CWE_Entry_HASH = {};
 
     my $iter = 0;
 
@@ -457,10 +464,10 @@ sub process_cwe_file {
             my $tail         = $1;
             my $next_element = $2;
             my $lcelement    = lc $next_element if $next_element;
-
+						my $funcname;
             if ( !$current_element ) {
                 $current_element = $next_element;
-                my $funcname = "process_$lcelement";
+                $funcname = "process_$lcelement";
                 $function = \&$funcname;
                 $line =~ s/^$tail//;
                 $content = $line;
@@ -493,11 +500,9 @@ sub process_cwe_file {
                 || $current_element eq 'Weakness'
                 || $current_element eq 'Compound_Element' );
 
-            my %cwe = $function->($xml_string);
+            my ( $id, $element ) = $function->($xml_string);
 
-            while ( my ( $id, $element ) = each %cwe ) {
-                $CWE_Entry_HASH->{$current_element}->{$id} = $element;
-            }
+            $CWE_Entry_HASH->{$current_element}->{$id} = $element;
 
             $iter++;
 
@@ -506,7 +511,7 @@ sub process_cwe_file {
 
             if ( $next_element && $current_element ne $next_element ) {
                 $current_element = $next_element;
-                my $funcname = "process_$lcelement";
+                $funcname = "process_$lcelement";
                 $function = \&$funcname;
             }
 
@@ -1061,7 +1066,7 @@ sub process_description_summary {
 
     my ($description_node) = @_;
 
-    my $result;
+    my $result = [];
 
     foreach my $summary_node ( $description_node->getChildNodes ) {
         my $s_node_type = ref $summary_node;
@@ -1070,21 +1075,21 @@ sub process_description_summary {
         my $s_node_str = $summary_node->string_value()
             if $summary_node->can('string_value');
 
-        if ( $s_node_type eq 'XML::XPath::Node::Text' ) {
-            next if $s_node_str =~ /^\s*$/;
+        next unless $s_node_str;
 
-        } elsif ( $s_node_name eq 'Description_Summary' ) {
-            next unless $s_node_str;
-            push( @$result, $s_node_str );
-        } else {
+        next if $s_node_str =~ /^\s*$/s;
+
+        if ( $s_node_type ne 'XML::XPath::Node::Text' ) {
             die "\n"
                 . "type: [$s_node_type]\n"
                 . "name: [$s_node_name]" . "\n"
                 . "value: [$s_node_str]" . "\n";
         }
+
+        push( @$result, $s_node_str );
     }
 
-    return $result;
+    return @$result;
 
 }
 

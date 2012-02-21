@@ -15,8 +15,10 @@ BEGIN {
     use_ok('NIST::NVD::Store::SQLite3') || print "Bail out!";
 }
 
-my $sqlite3 =
-  NIST::NVD::Store::SQLite3->new( store => 'SQLite3', database => $db_file, );
+my $sqlite3 = NIST::NVD::Store::SQLite3->new(
+    store    => 'SQLite3',
+    database => $db_file,
+);
 
 ok( $sqlite3, 'constructor returned goodness' );
 isa_ok( $sqlite3, 'NIST::NVD::Store::SQLite3', '$sqlite' );
@@ -33,14 +35,11 @@ my $cve = $sqlite3->get_cve_for_cpe( cpe => $cpe_urn );
 ok( $cve, 'get_cve_for_cpe returned defined value' );
 isa_ok( $cve, 'ARRAY', '$cve' );
 
-is( scalar @$cve, 7, 'cve list has correct number of elements' );
+is( scalar @$cve, 3, 'cve list has correct number of elements' );
 
 is_deeply(
     $cve,
-    [
-        'CVE-2011-4681', 'CVE-2011-4682', 'CVE-2011-4683', 'CVE-2011-4684',
-        'CVE-2011-4685', 'CVE-2011-4686', 'CVE-2011-4687'
-    ],
+    [ 'CVE-2011-4682', 'CVE-2011-4685', 'CVE-2011-4687' ],
     'cve list contains the right elements'
 ) or diag Data::Dumper::Dumper($cve);
 

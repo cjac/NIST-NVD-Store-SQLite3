@@ -6,4 +6,3 @@ Revision history for NIST-NVD-Store-SQLite3
 0.02		missed a dependency.  oops.
 
 0.03		indexing CWEs and publishing an interface to query them
-

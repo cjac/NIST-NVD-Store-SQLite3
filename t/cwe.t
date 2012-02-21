@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Data::Dumper;
-use Test::More tests => 16;
+use Test::More tests => 22;
 use FindBin qw($Bin);
 
 ( my $test_dir ) = $Bin =~ m:^(.*?/t)$:;
@@ -35,7 +35,11 @@ my $cpe_urn = 'cpe:/a:apple:safari:4.0';
 
 my $cpe_pkid = $q->{store}->_get_cpe_id($cpe_urn);
 
-ok( $cpe_pkid, 'got PK ID for cpe urn' );
+my $int_re = qr{^\d+$};
+
+ok( defined $cpe_pkid, 'cpe pk id is defined' );
+
+like( $cpe_pkid, $int_re, "cpe pk id is an integer for cpe urn [$cpe_urn]" );
 
 my $cve_id = $q->{store}->get_cve_for_cpe( cpe => $cpe_pkid );
 
@@ -51,26 +55,57 @@ my %pkid_field_name = (
     cwe_for_cpe => 'cwe_id',
 );
 
+my $query_name = 'get_cpe_id_select';
+ok( exists $query_ref->{$query_name}, "query [$query_name] exists" );
+my $query = $query_ref->{$query_name};
+
+my $sth = $q->{store}->_get_sth($query_name);
+
+$sth->execute($cpe_urn);
+
+my $count = 0;
+my $direct_cpe_pkid;
+my @row;
+while ( my $row = $sth->fetchrow_hashref() ) {
+    $count++;
+    $direct_cpe_pkid = $row->{id};
+}
+
+is( $count, 1, 'one and only one result for the query' )
+    or diag Data::Dumper::Dumper {
+    query => $query_ref->{$query_name},
+    id    => $cpe_urn,
+    };
+
+is( $direct_cpe_pkid, $cpe_pkid,
+    'direct query and query via API result in same primary key for this cpe urn'
+    )
+    or diag Data::Dumper::Dumper {
+    direct => $direct_cpe_pkid,
+    api    => $cpe_pkid
+    };
+
+my $results = {};
+
 foreach my $method (qw{cve_for_cpe cwe_for_cpe}) {
 
-    my $query_name = "${method}_select";
+    $query_name = "${method}_select";
 
     ok( exists $query_ref->{$query_name}, "query [$query_name] exists" );
 
-    my $query = $query_ref->{$query_name};
+    $query = $query_ref->{$query_name};
 
     ok( $query, "query [$query_name] is defined" ) or diag $query_name;
 
-    my $sth = $q->{store}->_get_sth($query_name);
+    $sth = $q->{store}->_get_sth($query_name);
 
     $sth->execute($cpe_pkid);
 
     my $direct_object_list = [];
-    my @row;
+    @row = ();
     while ( my $row = $sth->fetchrow_hashref() ) {
         push( @row,                 $row );
         push( @$direct_object_list, $row->{ $pkid_field_name{$method} } );
-				diag( Data::Dumper::Dumper $row );
     }
 
     ok( int(@row) != 0, 'direct query returned > 0 results' )
@@ -86,44 +121,32 @@ foreach my $method (qw{cve_for_cpe cwe_for_cpe}) {
 
     ok( int(@$object_list) > 0, "more than 0 results for method [$method]" )
         or diag "\$->$method( cpe => $cpe_urn )";
+
+    is_deeply( $object_list, $direct_object_list,
+        'indirect and direct results are the same' );
+
+    $results->{$method}->{direct}   = $direct_object_list;
+    $results->{$method}->{indirect} = $object_list;
 }
 
-foreach my $cve_entry (@$cve_id_list) {
-    like( $cve_entry, qr{^CVE-\d{4,}-\d{4}$}, 'format of CVE ID is correct' );
-}
+my $data = $q->cwe( cwe_id => $results->{cwe_for_cpe}->{direct}->[0] );
+
+is( ref $data, 'HASH', 'CWE data is a HASH ref' );
 
 is_deeply(
-    $cve_id_list,
-    [ 'CVE-2002-2435', 'CVE-2010-5071' ],
-    'Correct list of CVE IDs'
-);
-
-is_deeply(
-    $cwe_id_list,
-    [ 'CWE-2002-2435', 'CWE-2010-5071' ],
-    'Correct list of CWE IDs'
-);
-
-my $entry = $q->cve( cve_id => $cve_id_list->[0] );
-
-is( ref $entry, 'HASH', 'CVE entry is a HASH ref' );
-
-my $cvss = $entry->{'vuln:cvss'};
-
-is_deeply(
-    $cvss,
-    {   'cvss:base_metrics' => {
-            'cvss:confidentiality-impact' => 'PARTIAL',
-            'cvss:score'                  => '4.3',
-            'cvss:authentication'         => 'NONE',
-            'cvss:access-vector'          => 'NETWORK',
-            'cvss:source'                 => 'http://nvd.nist.gov',
-            'cvss:generated-on-datetime'  => '2011-12-08T06:47:00.000-05:00',
-            'cvss:availability-impact'    => 'NONE',
-            'cvss:integrity-impact'       => 'NONE',
-            'cvss:access-complexity'      => 'MEDIUM'
-        }
+    $data,
+    {   'ID'        => '264',
+        'Status'    => 'Incomplete',
+        'Languages' => [
+            { 'Language_Class' => { 'Language_Class_Description' => 'All' } }
+        ],
+        'Name'        => 'Permissions, Privileges, and Access Controls',
+        'Description' => [
+'Weaknesses in this category are related to the management of
+					permissions, privileges, and other security features that are used to perform
+					access control.'
+        ]
     },
-    'extracting cvss worked'
-);
+    'cwe data is right',
+) or diag Data::Dumper::Dumper( $data );
 

@@ -3,6 +3,7 @@
 .*~
 MYMETA.json
 t/data/
-t/data/*.db
-t/data/*.db-journal
-t/data/*.xml
+t/data/.*.db
+t/data/.*.db-journal
+t/data/.*.xml
+.*.db
