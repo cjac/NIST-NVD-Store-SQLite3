@@ -667,7 +667,18 @@ L<http://search.cpan.org/dist/NIST-NVD-Store-SQLite3/>
 
 Copyright 2012 F5 Networks, Inc.
 
-This program is released under the following license: perl
+CVE(r) and CWE(tm) are marks of The MITRE Corporation and used here with
+permission.  The information in CVE and CWE are copyright of The MITRE
+Corporation and also used here with permission.
+
+Please include links for CVE(r) <http://cve.mitre.org/> and CWE(tm)
+<http://cwe.mitre.org/> in all reproductions of these materials.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See http://dev.perl.org/licenses/ for more information.
 
 
 =cut
