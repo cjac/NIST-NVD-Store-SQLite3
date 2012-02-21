@@ -18,3 +18,4 @@ t/insert.t
 t/query.t
 t/cwe.t
 bin/convert-nvdcve
+t/data/cwec_v2.1.xml
