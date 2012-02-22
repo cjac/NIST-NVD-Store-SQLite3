@@ -4,9 +4,6 @@ use NIST::NVD::Store::Base;
 use base qw{NIST::NVD::Store::Base};
 use Carp;
 
-use IO::Uncompress::Bunzip2 qw(bunzip2 $Bunzip2Error);
-use IO::Compress::Bzip2 qw(bzip2 $Bzip2Error);
-
 use warnings;
 use strict;
 
