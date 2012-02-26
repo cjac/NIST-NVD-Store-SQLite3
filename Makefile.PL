@@ -16,6 +16,11 @@ WriteMakefile(
         'Test::File' => 0,
         'File::MMagic'   => 0,
         'File::LibMagic' => 0,
+        'Test::Pod::Coverage'   => 0,
+        'Test::Pod'             => 0,
+        'Perl::Critic'          => 0,
+        'XML::XPath'            => 0,
+        'XML::XPath::XMLParser' => 0,
     },
     PREREQ_PM => {
         'XML::XPath'  => 0,
@@ -23,6 +28,9 @@ WriteMakefile(
         'DBD::SQLite' => 0,
         'Time::HiRes' => 0,
         Carp          => 0
+        'Data::Dumper' => 0,
+        DBI            => 0,
+        'NIST::NVD'    => 0.08,
     },
     dist  => { COMPRESS => 'bzip2 -9f', SUFFIX => 'bz2', },
     clean => { FILES    => 'NIST-NVD-Store-SQLite3-*' },
