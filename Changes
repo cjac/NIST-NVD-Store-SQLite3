@@ -9,4 +9,5 @@ Revision history for NIST-NVD-Store-SQLite3
 
 0.04		added some deps
 				removed some other stuff
+				Let's see if the nightly tests pass yet...
 
