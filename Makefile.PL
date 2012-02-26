@@ -14,6 +14,10 @@ WriteMakefile(
     BUILD_REQUIRES => {
         'Test::More'            => 0,
         'Test::File'            => 0,
+        'File::MMagic'          => 0,
+        'File::LibMagic'        => 0,
+        'Test::More'            => 0,
+        'Test::File'            => 0,
         'Test::Pod::Coverage'   => 0,
         'Test::Pod'             => 0,
         'File::MMagic'          => 0,
@@ -26,10 +30,8 @@ WriteMakefile(
     PREREQ_PM => {
         'Time::HiRes'  => 0,
         'Data::Dumper' => 0,
-        'Time::HiRes'  => 0,
         Carp           => 0,
         DBI            => 0,
-        'Data::Dumper' => 0,
         Storable       => 0,
         'DBD::SQLite'  => 0,
         'NIST::NVD'    => 0.08,
