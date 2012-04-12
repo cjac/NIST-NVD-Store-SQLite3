@@ -82,6 +82,8 @@ my ($dev,  $ino,   $mode,  $nlink, $uid,     $gid, $rdev,
     $size, $atime, $mtime, $ctime, $blksize, $blocks
 ) = stat($db_file);
 
+like( $mtime, /^\d+$/, 'mtime is numeric' );
+
 my $nowish = time();
 
 ok( $nowish - $mtime <= 1, '$mtime is close' )

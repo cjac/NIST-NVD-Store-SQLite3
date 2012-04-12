@@ -92,15 +92,15 @@ $NVD_Updater->put_cpe( [ keys %vuln_software ] );
 
 print "Done.\n";
 
-print "Writing NVD entries to disk...";
-
-$NVD_Updater->put_nvd_entries($nvd_entries);
-
-print " Done.\n";
-
 print "Writing CWE data to disk...";
 
 $NVD_Updater->put_cwe_data($cwe_data);
+
+print " Done.\n";
+
+print "Writing NVD entries to disk...";
+
+$NVD_Updater->put_nvd_entries($nvd_entries);
 
 print " Done.\n";
 
@@ -113,6 +113,12 @@ print "Done.\n";
 print "Writing CWE index to disk...";
 
 $NVD_Updater->put_cwe_idx_cpe( \%weaknesses );
+
+print "Done.\n";
+
+print "Writing websec index to disk...";
+
+$NVD_Updater->put_websec_idx_cpe( \%weaknesses );
 
 print "Done.\n";
 
@@ -230,7 +236,8 @@ sub process_entry {
         } elsif ( $nodeName eq 'vuln:cvss' ) {
             $results->{$nodeName} = process_vuln_cvss($vuln);
         } elsif ( $nodeName eq 'vuln:cwe' ) {
-            push( @{ $results->{$nodeName} }, $vuln->getAttribute('id') );
+            my $cwe_id = sprintf('CWE-%04d',$vuln->getAttribute('ID'));
+            push( @{ $results->{$nodeName} }, $cwe_id );
         } elsif ( $nodeName eq 'vuln:references' ) {
             push( @{ $results->{$nodeName} },
                 process_vuln_references($vuln) );
@@ -464,11 +471,11 @@ sub process_cwe_file {
             my $tail         = $1;
             my $next_element = $2;
             my $lcelement    = lc $next_element if $next_element;
-						my $funcname;
+            my $funcname;
             if ( !$current_element ) {
                 $current_element = $next_element;
-                $funcname = "process_$lcelement";
-                $function = \&$funcname;
+                $funcname        = "process_$lcelement";
+                $function        = \&$funcname;
                 $line =~ s/^$tail//;
                 $content = $line;
 
@@ -511,8 +518,8 @@ sub process_cwe_file {
 
             if ( $next_element && $current_element ne $next_element ) {
                 $current_element = $next_element;
-                $funcname = "process_$lcelement";
-                $function = \&$funcname;
+                $funcname        = "process_$lcelement";
+                $function        = \&$funcname;
             }
 
         } else {
@@ -749,13 +756,20 @@ sub process_view {
 
     croak("there should be one and only one node") if int @view_nodelist != 1;
 
-    my $view_id = 'x';
-
     my $view = $view_nodelist[0];
 
     foreach my $attr ( $view->getAttributes() ) {
         next unless $attr;
-        $results->{ $attr->getName() } = $attr->getNodeValue();
+        my $attrName  = $attr->getName();
+        my $attrValue = $attr->getNodeValue();
+
+        if ( lc $attrName eq 'id'
+            && $attrValue =~ /^\d+$/ )
+        {
+            $attrValue = sprintf( 'CWE-%04d', $attrValue );
+        }
+
+        $results->{$attrName} = $attrValue;
     }
 
     foreach my $element ( $view->getChildNodes() ) {
