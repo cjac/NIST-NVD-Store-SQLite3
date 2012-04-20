@@ -91,6 +91,9 @@ CREATE TABLE IF NOT EXISTS cpe_websec_score (
   cat_a10 REAL
 
 )},
+    verify_cwe_pkid => qq{
+SELECT cwe_id,id FROM cwe WHERE id=?
+},
     cve_for_cpe_select => qq{
 SELECT cve.cve_id
   FROM cpe_cve_map,cve
@@ -118,7 +121,7 @@ SELECT id FROM cwe WHERE cwe.cwe_id=?
 SELECT cve_dump FROM cve WHERE cve.cve_id=?
 },
     get_cwe_select => qq{
-SELECT cwe_dump FROM cwe WHERE cwe.cwe_id=?
+SELECT id,cwe_dump FROM cwe WHERE cwe.cwe_id=?
 },
     put_cve_idx_cpe_insert => qq{
 INSERT INTO cpe_cve_map (cpe_id,cve_id)
@@ -183,7 +186,7 @@ sub new {
         cve_for_cpe_select cwe_for_cpe_select
         put_cve_idx_cpe_insert
         put_cwe_idx_cpe_insert
-				put_cwe_idx_cve_insert
+        put_cwe_idx_cve_insert
         put_cve_insert put_cve_update
         put_cwe_insert put_cwe_update
         get_cpe_id_select
@@ -193,7 +196,7 @@ sub new {
         )
     {
         $sth{$statement} = $self->{sqlite}->prepare( $query{$statement} )
-					or die "couldn't prepare statement '$statement'";
+            or die "couldn't prepare statement '$statement'";
     }
     my $fail = 0;
 
@@ -208,10 +211,13 @@ sub _connect_db {
     my $dbh = DBI->connect( "dbi:SQLite:dbname=$args{database}", "", "" );
 
     foreach my $statement (
-        qw(cpe_create websec_create
-				cve_cwe_map_create
+        qw(
+        cpe_create websec_create
+        cve_cwe_map_create
         cve_create cpe_cve_map_create
-        cwe_create cpe_cwe_map_create)
+        cwe_create cpe_cwe_map_create
+        verify_cwe_pkid
+        )
         )
     {
 
@@ -314,25 +320,30 @@ sub _get_cve_id {
 sub _get_cwe_id {
     my ( $self, $cwe_id ) = @_;
 
-    return $self->{cwe_map}->{$cwe_id}
-        if ( exists $self->{cwe_map}->{$cwe_id} );
+    my $sth;
 
-    $sth{get_cwe_id_select}->execute($cwe_id);
+    if ( $cwe_id =~ /^\d+$/ ) {
+        $sth = $self->{sqlite}
+            ->prepare('SELECT id,cwe_id FROM cwe WHERE id=?');
 
-    my $rows = 0;
-    while ( my $row = $sth{get_cwe_id_select}->fetchrow_hashref() ) {
-        print STDERR
-            "multiple ($rows) results for value intended to be unique.  cwe_id: [$cwe_id]\n"
-            if ( $rows != 0 );
+    } elsif ( $cwe_id =~ /^CWE-\d+/ ) {
 
-        $rows++;
-        $self->{cwe_map}->{$cwe_id} = $row->{id};
+        #        print STDERR "CWE ID is friendly\n";
+        $sth = $self->{sqlite}
+            ->prepare('SELECT id,cwe_id FROM cwe WHERE cwe_id=?');
+    } else {
+        print STDERR "cwe id malformed\n";
+        return;
     }
 
-    return $self->{cwe_map}->{$cwe_id}
-        if ( exists $self->{cwe_map}->{$cwe_id} );
+    $sth->execute($cwe_id);
+    my $row = $sth->fetchrow_hashref();
 
-    return;
+    unless ($row) {
+        return;
+    }
+
+    return ( $row->{qw{id cwe_id}} );
 }
 
 sub _get_cpe_id {
@@ -408,11 +419,6 @@ sub get_cve {
     return $entry;
 }
 
-=head2 get_cwe
-
-
-=cut
-
 my %latest_OWASP_ten = (
     'A1'  => 'CWE-0810',
     'A2'  => 'CWE-0811',
@@ -426,20 +432,35 @@ my %latest_OWASP_ten = (
     'A10' => 'CWE-0819',
 );
 
+=head2 get_cwe
+
+  my $cwe_dump = $self->get_cwe( id => $cwe_row->{id} );
+  or
+  my $cwe_dump = $self->get_cwe( cwe_id => $cwe_row->{cwe_id} );
+
+=cut
+
 sub get_cwe {
     my ( $self, %args ) = @_;
 
     my $sth;
 
-    if ( $args{cwe_id} =~ /^\d+$/ ) {
-        $sth = $self->{sqlite}->prepare('SELECT cwe_id FROM cwe WHERE id=?');
-    } elsif ( $args{cwe_id} =~ /^CWE-\d{4,}/ ) {
-        $sth = $sth{get_cwe_select};
-    } else {
-        print STDERR "id malformed\n";
+		my $arg;
+
+    if ( exists $args{id} ) {
+        die "id [$args{id}] is malformed" unless $args{id} =~ /^\d+$/;
+        $sth
+            = $self->{sqlite}->prepare('SELECT cwe_dump FROM cwe WHERE id=?');
+				$arg = $args{id};
+    } elsif ( exists $args{cwe_id} ) {
+        die "cwe_id [$args{cwe_id}] is malformed"
+            unless $args{cwe_id} =~ /^CWE-\d+/;
+        $sth = $self->{sqlite}
+            ->prepare('SELECT cwe_dump FROM cwe WHERE cwe_id=?');
+				$arg = $args{cwe_id};
     }
 
-    $sth->execute( $args{cwe_id} );
+    $sth->execute( $arg );
     my $frozen = $sth->fetchrow_hashref()->{cwe_dump};
 
     my $data = eval { thaw $frozen };
@@ -509,10 +530,12 @@ sub put_cwe_idx_cpe {
 
         foreach my $id (@$cwe_id) {
             my ($digits) = ( $id =~ /(\d+)$/ );
-            my $cwe_pkey_id = $self->_get_cwe_id($digits);
+            my ( $cwe_pkey_id, $cwe_id ) = $self->_get_cwe_id($id);
 
             unless ($cwe_pkey_id) {
-                print STDERR "no data for [$id]\n";
+
+                #                print STDERR "no data for [$id]\n";
+                print 'x';
                 next;
             }
 
@@ -580,8 +603,16 @@ sub update_websec_idx_cpe {
                 # Insert each CWE into the cpe to cwe mapping
                 $cwe_idx_cpe_sth->execute( $cpe_row->{id}, $cwe_row->{id} );
 
-								# Tally the CWE categories, filed under the OWASP top 10 plus an "other" category
-                my $cwe_dump = $self->get_cwe( cwe_id => $cwe_row->{id} );
+# Tally the CWE categories, filed under the OWASP top 10 plus an "other" category
+                print(
+                    Data::Dumper::Dumper(
+                        {   cpe => $cpe_row->{id},
+                            cve => $cve_row->{cve_id},
+                            cwe => $cwe_row->{cwe_id},
+                        }
+                    )
+                );
+                my $cwe_dump = $self->get_cwe( cwe_id => $cwe_row->{cwe_id} );
 
             }
         }
@@ -641,15 +672,6 @@ sub put_cve {
 
 }
 
-=head2 put_cwe
-
-
-=cut
-
-sub put_cwe {
-
-}
-
 =head2 put_nvd_entries
 
 
@@ -663,7 +685,6 @@ sub put_nvd_entries {
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
 
     my $cwe_idx_sth = $sth{put_cwe_idx_cve_insert};
-
 
     while ( my ( $cve_id, $entry ) = ( each %$entries ) ) {
         my $frozen = nfreeze($entry);
@@ -696,6 +717,76 @@ sub put_nvd_entries {
 
 =head2 put_cwe_data
 
+  $result = $self->put_cwe( cwe_id   => 'CWE-42',
+                            cwe_dump => $cwe_dump );
+
+=cut
+
+my $commit_buffer = {};
+
+sub put_cwe {
+	my ( $self, %args ) = @_;
+
+	my $cwe_id = $args{cwe_id};
+	my $cwe_dump = $args{cwe_dump};
+
+
+	if( exists $args{transactional} ){
+		push( @{$commit_buffer->{put_cwe_insert}}, [$cwe_dump,$cwe_id] );
+	}else{
+		$sth{put_cwe_insert}->execute($cwe_dump,$cwe_id);
+	}
+
+	return;
+}
+
+sub commit {
+	my ( $self, $buffer_name ) = @_;
+
+	$self->{sqlite}->do('BEGIN IMMEDIATE TRANSACTION');
+	foreach my $row ( @{ $commit_buffer->{$buffer_name} } ){
+		my( @bound ) = @$row;
+		$sth{$buffer_name}->execute(@bound);
+	}
+	$self->{sqlite}->commit();
+	delete $commit_buffer->{$buffer_name};
+}
+
+=head2 get_cwe_ids
+
+  $result = $self->get_cwe_ids();
+  foreach my $cwe_id ( @$result ){
+    ...
+  }
+
+=cut
+
+sub get_cwe_ids {
+	my($self) = @_;
+
+	my $result = [];
+
+	my $sth = $self->{sqlite}->prepare("SELECT cwe_id FROM cwe");
+
+	$sth->execute();
+
+	while( my $row = $sth->fetchrow_hashref() ){
+		push(@$result, $row->{cwe_id});
+	}
+
+	return $result;
+}
+
+
+=head2 put_cwe_data
+
+$cwe_data = { View             => $view_data,
+              Category         => $category_data,
+              Weakness         => $weakness_data,
+              Compound_Element => $compound_data,
+            };
+
+$NVD_Updater->put_cwe_data($cwe_data);
 
 =cut
 
@@ -711,19 +802,21 @@ sub put_cwe_data {
     foreach my $element (qw(View Category Weakness Compound_Element)) {
         my $data = $weakness_data->{$element};
         my %cwe_pkey_id;
-        foreach my $k ( keys %$data ) {
-            $cwe_pkey_id{$k} = $self->_get_cwe_id($k);
-            $self->{cwe_pkey_id}->{$k} = $cwe_pkey_id{$k};
-        }
 
-        while ( my ( $cwe_id, $entry ) = ( each %$data ) ) {
+        while ( my ( $k, $entry ) = ( each %$data ) ) {
+
+            my ( $cwe_pkey_id, $cwe_id ) = $self->_get_cwe_id($k);
+
+            $self->{cwe_pkey_id}->{$cwe_id} = $cwe_pkey_id if $cwe_id;
+
             my $frozen = nfreeze($entry);
 
-            if ( $self->_get_cwe_id($cwe_id) ) {
-                $cwe_id = $self->{cwe_pkey_id}->{$cwe_id};
-                push( @update_entries, [ $frozen, $cwe_id ] );
-            } else {
+            if ($cwe_pkey_id) {
+                push( @update_entries, [ $frozen, $cwe_pkey_id ] );
+            } elsif ( $k =~ /^CWE-\d+$/ ) {
                 push( @insert_entries, [ $frozen, $cwe_id ] );
+            } else {
+                print STDERR "cwe id [$k] is unrecognized.\n";
             }
             print STDERR ".";
         }

@@ -10,6 +10,8 @@ use Carp;
 
 use Getopt::Long;
 
+my $decimal_re = qr/^\d+$/;
+
 my ( $nvd, $store, $cwe );
 
 my %done             = ();
@@ -48,6 +50,9 @@ my $NVD_Updater = NIST::NVD::Update->new(
     database => $db_file,
 );
 
+my $cwe_ids = $NVD_Updater->get_cwe_ids();
+my %cwe_ids = map { $_ => 1 } @$cwe_ids;
+
 my %vuln_software;
 my %weaknesses;
 
@@ -83,8 +88,9 @@ print "Done.\n";
 printf( "read \%i cwe Views\n",      int keys $cwe_data->{View} );
 printf( "read \%i cwe Categories\n", int keys $cwe_data->{Category} );
 printf( "read \%i cwe Weaknesses\n", int keys $cwe_data->{Weakness} );
-printf( "read \%i cwe Compound Elements\n",
-    int keys $cwe_data->{Compound_Element} );
+
+#printf( "read \%i cwe Compound Elements\n",
+#    int keys $cwe_data->{Compound_Element} );
 
 print "Writing CPE URNs to disk...";
 
@@ -118,7 +124,7 @@ print "Done.\n";
 
 print "Writing websec index to disk...";
 
-$NVD_Updater->put_websec_idx_cpe( \%weaknesses );
+$NVD_Updater->update_websec_idx_cpe( \%weaknesses );
 
 print "Done.\n";
 
@@ -236,7 +242,7 @@ sub process_entry {
         } elsif ( $nodeName eq 'vuln:cvss' ) {
             $results->{$nodeName} = process_vuln_cvss($vuln);
         } elsif ( $nodeName eq 'vuln:cwe' ) {
-            my $cwe_id = sprintf('CWE-%04d',$vuln->getAttribute('ID'));
+            my $cwe_id = $vuln->getAttribute('id');
             push( @{ $results->{$nodeName} }, $cwe_id );
         } elsif ( $nodeName eq 'vuln:references' ) {
             push( @{ $results->{$nodeName} },
@@ -475,7 +481,8 @@ sub process_cwe_file {
             if ( !$current_element ) {
                 $current_element = $next_element;
                 $funcname        = "process_$lcelement";
-                $function        = \&$funcname;
+                print STDERR "function: [$funcname]\n";
+                $function = \&$funcname;
                 $line =~ s/^$tail//;
                 $content = $line;
 
@@ -509,7 +516,32 @@ sub process_cwe_file {
 
             my ( $id, $element ) = $function->($xml_string);
 
-            $CWE_Entry_HASH->{$current_element}->{$id} = $element;
+            my $cwe_id;
+
+            if ( $id =~ $decimal_re ) {
+                $cwe_id = sprintf( 'CWE-%d', $id );
+            } elsif ( $id =~ /^CWE-\d+$/ ) {
+                $cwe_id = $id;
+            } elsif ( $id eq 'compound_id' ) {
+
+                # not yet implemented
+                next;
+            } else {
+                die "id [$id] is unrecognized";
+            }
+
+            $CWE_Entry_HASH->{$current_element}->{$cwe_id} = $element;
+
+            if ( exists( $cwe_ids{$id} ) ) {
+
+                # TODO: Update
+            } else {
+                $NVD_Updater->put_cwe(
+                    cwe_id        => $id,
+                    cwe_dump      => $element,
+                    transactional => 1,
+                );
+            }
 
             $iter++;
 
@@ -519,7 +551,9 @@ sub process_cwe_file {
             if ( $next_element && $current_element ne $next_element ) {
                 $current_element = $next_element;
                 $funcname        = "process_$lcelement";
-                $function        = \&$funcname;
+                print STDERR "function: [$funcname]\n";
+
+                $function = \&$funcname;
             }
 
         } else {
@@ -527,6 +561,8 @@ sub process_cwe_file {
         }
 
     }
+
+		$NVD_Updater->commit('put_cwe_insert');
 
     return $CWE_Entry_HASH;
 }
@@ -624,6 +660,9 @@ sub process_weakness {
 
         }
     }
+
+    print STDERR "non-numeric ID: [$results->{ID}]\n"
+        unless $results->{ID} =~ $decimal_re;
 
     return ( $results->{ID} => $results );
 }
