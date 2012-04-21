@@ -51,7 +51,6 @@ my $NVD_Updater = NIST::NVD::Update->new(
 );
 
 my $cwe_ids = $NVD_Updater->get_cwe_ids();
-my %cwe_ids = map { $_ => 1 } @$cwe_ids;
 
 my %vuln_software;
 my %weaknesses;
@@ -532,16 +531,20 @@ sub process_cwe_file {
 
             $CWE_Entry_HASH->{$current_element}->{$cwe_id} = $element;
 
-            if ( exists( $cwe_ids{$id} ) ) {
+            if ( exists( $cwe_ids->{$cwe_id} ) ) {
 
                 # TODO: Update
             } else {
+							my $frozen = nfreeze($element);
+
                 $NVD_Updater->put_cwe(
                     cwe_id        => $id,
-                    cwe_dump      => $element,
+                    cwe_dump      => nfreeze( $element ),
                     transactional => 1,
                 );
+
             }
+
 
             $iter++;
 
@@ -587,7 +590,17 @@ sub process_weakness {
 
     foreach my $attr ( $weakness->getAttributes() ) {
         next unless $attr;
-        $results->{ $attr->getName() } = $attr->getNodeValue();
+
+        my $attrName  = $attr->getName();
+        my $attrValue = $attr->getNodeValue();
+
+        if ( lc $attrName eq 'id'
+            && $attrValue =~ /^\d+$/ )
+        {
+            $attrValue = sprintf( 'CWE-%d', $attrValue );
+        }
+
+        $results->{$attrName} = $attrValue;
     }
 
     foreach my $element ( $weakness->getChildNodes() ) {
@@ -660,9 +673,6 @@ sub process_weakness {
 
         }
     }
-
-    print STDERR "non-numeric ID: [$results->{ID}]\n"
-        unless $results->{ID} =~ $decimal_re;
 
     return ( $results->{ID} => $results );
 }
@@ -799,13 +809,14 @@ sub process_view {
 
     foreach my $attr ( $view->getAttributes() ) {
         next unless $attr;
+
         my $attrName  = $attr->getName();
         my $attrValue = $attr->getNodeValue();
 
         if ( lc $attrName eq 'id'
             && $attrValue =~ /^\d+$/ )
         {
-            $attrValue = sprintf( 'CWE-%04d', $attrValue );
+            $attrValue = sprintf( 'CWE-%d', $attrValue );
         }
 
         $results->{$attrName} = $attrValue;
@@ -869,7 +880,17 @@ sub process_category {
 
     foreach my $attr ( $category->getAttributes() ) {
         next unless $attr;
-        $results->{ $attr->getName() } = $attr->getNodeValue();
+
+        my $attrName  = $attr->getName();
+        my $attrValue = $attr->getNodeValue();
+
+        if ( lc $attrName eq 'id'
+            && $attrValue =~ /^\d+$/ )
+        {
+            $attrValue = sprintf( 'CWE-%d', $attrValue );
+        }
+
+        $results->{$attrName} = $attrValue;
     }
 
     my $category_id = $results->{ID};

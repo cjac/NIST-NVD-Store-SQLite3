@@ -445,22 +445,24 @@ sub get_cwe {
 
     my $sth;
 
-		my $arg;
+    my $arg;
 
     if ( exists $args{id} ) {
         die "id [$args{id}] is malformed" unless $args{id} =~ /^\d+$/;
         $sth
             = $self->{sqlite}->prepare('SELECT cwe_dump FROM cwe WHERE id=?');
-				$arg = $args{id};
+        $arg = $args{id};
     } elsif ( exists $args{cwe_id} ) {
         die "cwe_id [$args{cwe_id}] is malformed"
             unless $args{cwe_id} =~ /^CWE-\d+/;
         $sth = $self->{sqlite}
             ->prepare('SELECT cwe_dump FROM cwe WHERE cwe_id=?');
-				$arg = $args{cwe_id};
+        $arg = $args{cwe_id};
     }
 
-    $sth->execute( $arg );
+    $sth->execute($arg);
+
+    #		print "id=[$arg]";
     my $frozen = $sth->fetchrow_hashref()->{cwe_dump};
 
     my $data = eval { thaw $frozen };
@@ -521,6 +523,8 @@ my %uniq_cwe_idx_cpe;
 sub put_cwe_idx_cpe {
     my ( $self, $weaknesses ) = @_;
 
+    my $initial_cwe_ids = $self->get_cwe_ids();
+
     my (%cpe_pkey_id)
         = map { $_ => $self->_get_cpe_id($_) } keys %$weaknesses;
 
@@ -529,8 +533,7 @@ sub put_cwe_idx_cpe {
         my $cpe_pkey_id = $cpe_pkey_id{$cpe_urn};
 
         foreach my $id (@$cwe_id) {
-            my ($digits) = ( $id =~ /(\d+)$/ );
-            my ( $cwe_pkey_id, $cwe_id ) = $self->_get_cwe_id($id);
+            my $cwe_pkey_id = $initial_cwe_ids->{$id};
 
             unless ($cwe_pkey_id) {
 
@@ -590,7 +593,12 @@ sub update_websec_idx_cpe {
     my $get_cwe_sth = $self->_get_sth('get_cwe_select');
 
     $cpe_sth->execute();
+
+		my @idx_args = ();
+
     while ( my $cpe_row = $cpe_sth->fetchrow_hashref() ) {
+
+			print STDERR "Preparing index of CWEs for CPE [$cpe_row->{urn}]...";
 
         # for each cpe, find all CVEs
         $cve_sth->execute( $cpe_row->{id} );
@@ -598,26 +606,30 @@ sub update_websec_idx_cpe {
 
             # for each CVE, find all CWEs
             $cwe_sth->execute( $cve_row->{cve_id} );
+
             while ( my $cwe_row = $cwe_sth->fetchrow_hashref() ) {
+                push( @idx_args, [ $cpe_row->{id}, $cwe_row->{id} ] );
 
                 # Insert each CWE into the cpe to cwe mapping
-                $cwe_idx_cpe_sth->execute( $cpe_row->{id}, $cwe_row->{id} );
 
 # Tally the CWE categories, filed under the OWASP top 10 plus an "other" category
-                print(
-                    Data::Dumper::Dumper(
-                        {   cpe => $cpe_row->{id},
-                            cve => $cve_row->{cve_id},
-                            cwe => $cwe_row->{cwe_id},
-                        }
-                    )
-                );
-                my $cwe_dump = $self->get_cwe( cwe_id => $cwe_row->{cwe_id} );
+#                my $cwe_dump = $self->get_cwe( cwe_id => $cwe_row->{cwe_id} );
 
             }
+
         }
 
+        print STDERR "done\n";
     }
+
+			print STDERR "Committing...";
+        $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
+        foreach my $row (@idx_args) {
+            $cwe_idx_cpe_sth->execute(@$row);
+        }
+        $self->{sqlite}->commit();
+		print STDERR "done\n";
+
 
 }
 
@@ -725,58 +737,56 @@ sub put_nvd_entries {
 my $commit_buffer = {};
 
 sub put_cwe {
-	my ( $self, %args ) = @_;
+    my ( $self, %args ) = @_;
 
-	my $cwe_id = $args{cwe_id};
-	my $cwe_dump = $args{cwe_dump};
+    my $cwe_id   = $args{cwe_id};
+    my $cwe_dump = $args{cwe_dump};
 
+    if ( exists $args{transactional} ) {
+        push( @{ $commit_buffer->{put_cwe_insert} }, [ $cwe_dump, $cwe_id ] );
+    } else {
+        $sth{put_cwe_insert}->execute( $cwe_dump, $cwe_id );
+    }
 
-	if( exists $args{transactional} ){
-		push( @{$commit_buffer->{put_cwe_insert}}, [$cwe_dump,$cwe_id] );
-	}else{
-		$sth{put_cwe_insert}->execute($cwe_dump,$cwe_id);
-	}
-
-	return;
+    return;
 }
 
 sub commit {
-	my ( $self, $buffer_name ) = @_;
+    my ( $self, $buffer_name ) = @_;
 
-	$self->{sqlite}->do('BEGIN IMMEDIATE TRANSACTION');
-	foreach my $row ( @{ $commit_buffer->{$buffer_name} } ){
-		my( @bound ) = @$row;
-		$sth{$buffer_name}->execute(@bound);
-	}
-	$self->{sqlite}->commit();
-	delete $commit_buffer->{$buffer_name};
+    $self->{sqlite}->do('BEGIN IMMEDIATE TRANSACTION');
+    foreach my $row ( @{ $commit_buffer->{$buffer_name} } ) {
+        my (@bound) = @$row;
+        $sth{$buffer_name}->execute(@bound);
+    }
+    $self->{sqlite}->commit();
+    delete $commit_buffer->{$buffer_name};
 }
 
 =head2 get_cwe_ids
 
   $result = $self->get_cwe_ids();
-  foreach my $cwe_id ( @$result ){
+  while( my( $cwe_id, $cwe_pkey_id ) = each %$result ){
     ...
   }
 
 =cut
 
 sub get_cwe_ids {
-	my($self) = @_;
+    my ($self) = @_;
 
-	my $result = [];
+    my $result = {};
 
-	my $sth = $self->{sqlite}->prepare("SELECT cwe_id FROM cwe");
+    my $sth = $self->{sqlite}->prepare("SELECT cwe_id,id FROM cwe");
 
-	$sth->execute();
+    $sth->execute();
 
-	while( my $row = $sth->fetchrow_hashref() ){
-		push(@$result, $row->{cwe_id});
-	}
+    while ( my $row = $sth->fetchrow_hashref() ) {
+        $result->{ $row->{cwe_id} } = $row->{id};
+    }
 
-	return $result;
+    return $result;
 }
-
 
 =head2 put_cwe_data
 
@@ -798,6 +808,8 @@ sub put_cwe_data {
 
     my $insert_sth = $sth{put_cwe_insert};
     my $update_sth = $sth{put_cwe_update};
+
+    my $initial_cwe_ids = $self->get_cwe_ids();
 
     foreach my $element (qw(View Category Weakness Compound_Element)) {
         my $data = $weakness_data->{$element};
@@ -825,10 +837,10 @@ sub put_cwe_data {
     printf STDERR "inserting \%i rows\n", int(@insert_entries);
     printf STDERR "updating \%i rows\n",  int(@update_entries);
 
-    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
-    $insert_sth->execute(@$_) foreach @insert_entries;
-    $update_sth->execute(@$_) foreach @update_entries;
-    $self->{sqlite}->commit();
+    #    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
+    #    $insert_sth->execute(@$_) foreach @insert_entries;
+    #    $update_sth->execute(@$_) foreach @update_entries;
+    #    $self->{sqlite}->commit();
 
 }
 
