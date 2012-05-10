@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS cve_cwe_map (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
 
   cve_id INTEGER,
-  cwe_id INTEGER,
+  cwe_id VARCHAR(64),
   CONSTRAINT uniq_cve_cwe UNIQUE ( cve_id, cwe_id ) ON CONFLICT IGNORE
 )},
     websec_create => qq{
@@ -292,33 +292,45 @@ sub get_cwe_for_cpe {
     return $cwe_id;
 }
 
+my %cve_id_cache;
+
 sub _get_cve_id {
     my ( $self, $cve_id ) = @_;
 
-    return $self->{cve_map}->{$cve_id}
-        if ( exists $self->{cve_map}->{$cve_id} );
+    return @{ $cve_id_cache{$cve_id} } if exists $cve_id_cache{$cve_id};
 
-    $sth{get_cve_id_select}->execute($cve_id);
+    my $sth;
+    my $query;
 
-    my $rows = 0;
-    while ( my $row = $sth{get_cve_id_select}->fetchrow_hashref() ) {
-        print STDERR
-            "multiple ($rows) results for value intended to be unique.  cve_id: [$cve_id]\n"
-            if ( $rows != 0 );
-
-        $rows++;
-
-        $self->{cve_map}->{$cve_id} = $row->{id};
+    if ( $cve_id =~ /^\d+$/ ) {
+        $query = 'SELECT id,cve_id FROM cve WHERE id=?';
+    } elsif ( $cve_id =~ /^CVE-\d+-\d+/ ) {
+        $query = 'SELECT id,cve_id FROM cve WHERE cve_id=?';
+    } else {
+        print STDERR "cve id malformed\n";
+        die;
     }
 
-    return $self->{cve_map}->{$cve_id}
-        if ( exists $self->{cve_map}->{$cve_id} );
+    $sth = $self->{sqlite}->prepare($query);
 
-    return;
+    $sth->execute($cve_id);
+    my $row = $sth->fetchrow_hashref();
+
+    unless ($row) {
+        return;
+    }
+
+    $cve_id_cache{$cve_id} = [ $row->{qw{id cve_id}} ];
+
+    return ( $row->{qw{id cve_id}} );
 }
+
+my %cwe_id_cache;
 
 sub _get_cwe_id {
     my ( $self, $cwe_id ) = @_;
+
+    return @{ $cwe_id_cache{$cwe_id} } if exists $cwe_id_cache{$cwe_id};
 
     my $sth;
 
@@ -343,7 +355,10 @@ sub _get_cwe_id {
         return;
     }
 
-    return ( $row->{qw{id cwe_id}} );
+    $cwe_id_cache{$cwe_id} = [ $row->{qw{id cwe_id}} ];
+    \
+
+        return ( $row->{qw{id cwe_id}} );
 }
 
 sub _get_cpe_id {
@@ -419,18 +434,64 @@ sub get_cve {
     return $entry;
 }
 
+my %injection     = ( OWASP => 'A1', );
+my %xss           = ( OWASP => 'A2', );
+my %authn_session = ( OWASP => 'A3', );
+
 my %latest_OWASP_ten = (
-    'A1'  => 'CWE-0810',
-    'A2'  => 'CWE-0811',
-    'A3'  => 'CWE-0812',
-    'A4'  => 'CWE-0813',
-    'A5'  => 'CWE-0814',
-    'A6'  => 'CWE-0815',
-    'A7'  => 'CWE-0816',
-    'A8'  => 'CWE-0817',
-    'A9'  => 'CWE-0818',
-    'A10' => 'CWE-0819',
+    'A1' => {
+        id      => 'CWE-810',
+        members => [ 'CWE-78', 'CWE-88', 'CWE-89', 'CWE-90', 'CWE-91', ],
+    },
+    'A2' => {
+        id      => 'CWE-811',
+        members => [ 'CWE-79', ],
+    },
+
+    'A3' => {
+        id      => 'CWE-812',
+        members => [ 'CWE-287', 'CWE-306', 'CWE-307', 'CWE-798', 'CWE-798', ],
+    },
+    'A4' => {
+        id      => 'CWE-813',
+        members => [
+            'CWE-22',  'CWE-434', 'CWE-639', 'CWE-829',
+            'CWE-862', 'CWE-863'
+        ]
+    },
+    'A5' => { id => 'CWE-814', members => ['CWE-352'] },
+    'A6' => {
+        id      => 'CWE-815',
+        members => [
+            'CWE-209', 'CWE-219', 'CWE-250', 'CWE-538',
+            'CWE-552', 'CWE-732',
+        ]
+    },
+    'A7' => {
+        id      => 'CWE-816',
+        members => [ 'CWE-311', 'CWE-312', 'CWE-326', 'CWE-327', 'CWE-759', ]
+    },
+    'A8' => {
+        id      => 'CWE-817',
+        members => [ 'CWE-284', 'CWE-862', 'CWE-863', ]
+    },
+    'A9' => {
+        id      => 'CWE-818',
+        members => [ 'CWE-311', 'CWE-319', ]
+    },
+    'A10' => {
+        id      => 'CWE-819',
+        members => [ 'CWE-601', ]
+    },
 );
+
+my %owasp_idx;
+
+foreach my $cat (qw( A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 )) {
+    foreach my $cwe_id ( @{ $latest_OWASP_ten{$cat}->{members} } ) {
+        $owasp_idx{$cwe_id} = $cat;
+    }
+}
 
 =head2 get_cwe
 
@@ -493,12 +554,13 @@ sub put_cve_idx_cpe {
     my @params;
     while ( my ( $cpe_urn, $cve_id ) = ( each %$vuln_software ) ) {
         my $cpe_pkey_id = $self->_get_cpe_id($cpe_urn);
-        my (@cve_pkey_id) = map { $self->_get_cve_id($_) } @$cve_id;
 
-        foreach my $cve_pkey_id (@cve_pkey_id) {
-            next if $uniq_cve_idx_cpe{$cpe_pkey_id}->{$cve_pkey_id}++;
-            push( @params, [ $cpe_pkey_id, $cve_pkey_id ] );
-        }
+				foreach my $id (@$cve_id){
+					my ( $cve_pkey, $cve_friendly ) = $self->_get_cve_id($id);
+					next unless $cve_pkey;
+					next if $uniq_cve_idx_cpe{$cpe_pkey_id}->{$cve_pkey}++;
+					push( @params, [ $cpe_pkey_id, $cve_pkey ] );
+				}
     }
 
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
@@ -590,15 +652,15 @@ sub update_websec_idx_cpe {
             . ")" );
     my $score_sth = $dbh->prepare($q);
 
-    my $get_cwe_sth = $self->_get_sth('get_cwe_select');
-
     $cpe_sth->execute();
 
-		my @idx_args = ();
+    my @idx_args = ();
+
+    my $websec_score = {};
 
     while ( my $cpe_row = $cpe_sth->fetchrow_hashref() ) {
 
-			print STDERR "Preparing index of CWEs for CPE [$cpe_row->{urn}]...";
+        print STDERR "Preparing index of CWEs for CPE [$cpe_row->{urn}]...";
 
         # for each cpe, find all CVEs
         $cve_sth->execute( $cpe_row->{id} );
@@ -608,13 +670,23 @@ sub update_websec_idx_cpe {
             $cwe_sth->execute( $cve_row->{cve_id} );
 
             while ( my $cwe_row = $cwe_sth->fetchrow_hashref() ) {
-                push( @idx_args, [ $cpe_row->{id}, $cwe_row->{id} ] );
+                my $cwe_id = $cwe_row->{cwe_id};
+                push( @idx_args, [ $cpe_row->{id}, $cwe_id ] );
 
-                # Insert each CWE into the cpe to cwe mapping
+                my $owasp_cat = 'other';
+                if ( exists $owasp_idx{$cwe_id} ) {
+                    $owasp_cat = $owasp_idx{$cwe_id};
+                }
 
-# Tally the CWE categories, filed under the OWASP top 10 plus an "other" category
-#                my $cwe_dump = $self->get_cwe( cwe_id => $cwe_row->{cwe_id} );
+                my ( $cve_pkey, $cve_friendly )
+                    = $self->_get_cve_id( $cve_row->{cve_id} );
 
+                push(
+                    @{ $websec_score->{ $cpe_row->{urn} }->{$owasp_cat} },
+                    {   cwe_id => $cwe_id,
+                        cve_id => $cve_friendly
+                    },
+                );
             }
 
         }
@@ -622,14 +694,40 @@ sub update_websec_idx_cpe {
         print STDERR "done\n";
     }
 
-			print STDERR "Committing...";
-        $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
-        foreach my $row (@idx_args) {
-            $cwe_idx_cpe_sth->execute(@$row);
-        }
-        $self->{sqlite}->commit();
-		print STDERR "done\n";
+    print Data::Dumper::Dumper($websec_score);
 
+    my @websec_score;
+    foreach my $cpe_urn ( keys %$websec_score ) {
+        my $score = $websec_score->{$cpe_urn};
+        my @score;
+        foreach my $cat (qw( other A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 )) {
+            if ( exists $score->{$cat} ) {
+
+                # TODO: improve the scoring algorithm
+                if ( scalar @{ $score->{$cat} } > 2 ) {
+                    push( @score, 10 );
+                } elsif ( scalar @{ $score->{$cat} } > 1 ) {
+                    push( @score, 6 );
+                } elsif ( scalar @{ $score->{$cat} } > 0 ) {
+                    push( @score, 3 );
+                }
+            } else {
+                push( @score, 0 );
+            }
+        }
+        push( @websec_score, [ $cpe_urn, @score ] );
+    }
+
+    print STDERR "Committing...";
+    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
+    foreach my $row (@websec_score) {
+        $score_sth->execute(@$row);
+    }
+    foreach my $row (@idx_args) {
+        $cwe_idx_cpe_sth->execute(@$row);
+    }
+    $self->{sqlite}->commit();
+    print STDERR "done\n";
 
 }
 
@@ -692,38 +790,41 @@ sub put_cve {
 sub put_nvd_entries {
     my ( $self, $entries ) = @_;
 
-    my %cve_pkey_id = map { $_ => $self->_get_cve_id($_) } keys %$entries;
-
-    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
-
-    my $cwe_idx_sth = $sth{put_cwe_idx_cve_insert};
+    my @insert_args;
+    my @update_args;
 
     while ( my ( $cve_id, $entry ) = ( each %$entries ) ) {
         my $frozen = nfreeze($entry);
-
+        my ( $pkey, $friendly ) = $self->_get_cve_id($cve_id);
         my $sth;
         my $cve_indexed = 0;
-        if ( $cve_indexed = $cve_pkey_id{$cve_id} ) {
-            $cve_id = $cve_pkey_id{$cve_id};
-            $sth    = $sth{put_cve_update};
+
+        # If the CVE is already in the database, update the record
+        if ($pkey) {
+            push( @update_args, [ $frozen, $cve_id ] );
         } else {
-            $sth = $sth{put_cve_insert};
+            push( @insert_args, [ $frozen, $cve_id ] );
         }
+    }
 
-        $sth->execute( $frozen, $cve_id );
+    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
+    $sth{put_cve_update}->execute(@$_) foreach @update_args;
+    $sth{put_cve_insert}->execute(@$_) foreach @insert_args;
+    $self->{sqlite}->commit();
 
-        $cve_id = $self->_get_cve_id($cve_id) unless $cve_indexed;
+    my @cwe_idx_args;
+    while ( my ( $cve_id, $entry ) = ( each %$entries ) ) {
+        my ( $pkey, $friendly ) = $self->_get_cve_id($cve_id);
 
         # index the cve->cwe relation
         foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
             next if $self->_get_cwe_id($cwe_id);
-
-            $cwe_idx_sth->execute( $cve_id, $cwe_id );
+            push( @cwe_idx_args, [ $cve_id, $cwe_id ] );
         }
-
-        print STDERR ".";
     }
 
+    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
+		$sth{put_cwe_idx_cve_insert}->execute(@$_) foreach @cwe_idx_args;
     $self->{sqlite}->commit();
 }
 

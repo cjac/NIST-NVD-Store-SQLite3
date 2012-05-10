@@ -480,7 +480,7 @@ sub process_cwe_file {
             if ( !$current_element ) {
                 $current_element = $next_element;
                 $funcname        = "process_$lcelement";
-                print STDERR "function: [$funcname]\n";
+                print STDERR "\nfunction: [$funcname]\n";
                 $function = \&$funcname;
                 $line =~ s/^$tail//;
                 $content = $line;
@@ -554,7 +554,7 @@ sub process_cwe_file {
             if ( $next_element && $current_element ne $next_element ) {
                 $current_element = $next_element;
                 $funcname        = "process_$lcelement";
-                print STDERR "function: [$funcname]\n";
+                print STDERR "\nfunction: [$funcname]\n";
 
                 $function = \&$funcname;
             }
