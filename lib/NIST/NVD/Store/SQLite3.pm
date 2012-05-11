@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS cpe_cve_map (
 
   cpe_id INTEGER,
   cve_id INTEGER,
-  CONSTRAINT uniq_cpe_cve UNIQUE ( cpe_id, cve_id ) ON CONFLICT IGNORE
+  CONSTRAINT uniq_cpe_cve UNIQUE ( cpe_id, cve_id ) ON CONFLICT FAIL
 )},
     cpe_cwe_map_create => qq{
 CREATE TABLE IF NOT EXISTS cpe_cwe_map (
@@ -119,6 +119,12 @@ SELECT id FROM cwe WHERE cwe.cwe_id=?
 },
     get_cve_select => qq{
 SELECT cve_dump FROM cve WHERE cve.cve_id=?
+},
+    get_cve_id_select_by_pkey => qq{
+SELECT id,cve_id FROM cve WHERE id=?
+},
+    get_cve_id_select_by_friendly => qq{
+SELECT id,cve_id FROM cve WHERE cve_id=?
 },
     get_cwe_select => qq{
 SELECT id,cwe_dump FROM cwe WHERE cwe.cwe_id=?
@@ -192,6 +198,8 @@ sub new {
         get_cpe_id_select
         get_cve_id_select get_cve_select
         get_cwe_id_select get_cwe_select
+        get_cve_id_select_by_pkey
+        get_cve_id_select_by_friendly
         )
         )
     {
@@ -303,26 +311,21 @@ sub _get_cve_id {
     my $query;
 
     if ( $cve_id =~ /^\d+$/ ) {
-        $query = 'SELECT id,cve_id FROM cve WHERE id=?';
+        $sth = $sth{get_cve_id_select_by_pkey};
     } elsif ( $cve_id =~ /^CVE-\d+-\d+/ ) {
-        $query = 'SELECT id,cve_id FROM cve WHERE cve_id=?';
+        $sth = $sth{get_cve_id_select_by_friendly};
     } else {
         print STDERR "cve id malformed\n";
         die;
     }
 
-    $sth = $self->{sqlite}->prepare($query);
-
     $sth->execute($cve_id);
     my $row = $sth->fetchrow_hashref();
+    return unless $row;
 
-    unless ($row) {
-        return;
-    }
+    $cve_id_cache{$cve_id} = [ $row->{id}, $row->{cve_id} ];
 
-    $cve_id_cache{$cve_id} = [ $row->{qw{id cve_id}} ];
-
-    return ( $row->{qw{id cve_id}} );
+    return ( $row->{id}, $row->{cve_id} );
 }
 
 my %cwe_id_cache;
@@ -555,17 +558,17 @@ sub put_cve_idx_cpe {
     while ( my ( $cpe_urn, $cve_id ) = ( each %$vuln_software ) ) {
         my $cpe_pkey_id = $self->_get_cpe_id($cpe_urn);
 
-				foreach my $id (@$cve_id){
-					my ( $cve_pkey, $cve_friendly ) = $self->_get_cve_id($id);
-					next unless $cve_pkey;
-					next if $uniq_cve_idx_cpe{$cpe_pkey_id}->{$cve_pkey}++;
-					push( @params, [ $cpe_pkey_id, $cve_pkey ] );
-				}
+        foreach my $id (@$cve_id) {
+            my ( $cve_pkey, $cve_friendly ) = $self->_get_cve_id($id);
+            next unless $cve_pkey;
+            next if $uniq_cve_idx_cpe{$cpe_pkey_id}->{$cve_pkey}++;
+            push( @params, [ $cpe_pkey_id, $cve_pkey ] );
+        }
     }
 
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
     $sth{put_cve_idx_cpe_insert}->execute(@$_) foreach (@params);
-    $self->{sqlite}->commit();
+    $self->{sqlite}->commit() or die $$self->{sqlite}->errstr;
     return;
 }
 
@@ -673,10 +676,7 @@ sub update_websec_idx_cpe {
                 my $cwe_id = $cwe_row->{cwe_id};
                 push( @idx_args, [ $cpe_row->{id}, $cwe_id ] );
 
-                my $owasp_cat = 'other';
-                if ( exists $owasp_idx{$cwe_id} ) {
-                    $owasp_cat = $owasp_idx{$cwe_id};
-                }
+                my $owasp_cat = $owasp_idx{$cwe_id} // 'other';
 
                 my ( $cve_pkey, $cve_friendly )
                     = $self->_get_cve_id( $cve_row->{cve_id} );
@@ -720,12 +720,8 @@ sub update_websec_idx_cpe {
 
     print STDERR "Committing...";
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
-    foreach my $row (@websec_score) {
-        $score_sth->execute(@$row);
-    }
-    foreach my $row (@idx_args) {
-        $cwe_idx_cpe_sth->execute(@$row);
-    }
+    $score_sth->execute(@$_)       foreach @websec_score;
+    $cwe_idx_cpe_sth->execute(@$_) foreach @idx_args;
     $self->{sqlite}->commit();
     print STDERR "done\n";
 
@@ -818,13 +814,14 @@ sub put_nvd_entries {
 
         # index the cve->cwe relation
         foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
-            next if $self->_get_cwe_id($cwe_id);
-            push( @cwe_idx_args, [ $cve_id, $cwe_id ] );
+					  my ( $cwe_pkey, $cwe_friendly) = $self->_get_cwe_id($cwe_id);
+            next unless $cwe_pkey;
+            push( @cwe_idx_args, [ $cve_id, $cwe_friendly ] );
         }
     }
 
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
-		$sth{put_cwe_idx_cve_insert}->execute(@$_) foreach @cwe_idx_args;
+    $sth{put_cwe_idx_cve_insert}->execute(@$_) foreach @cwe_idx_args;
     $self->{sqlite}->commit();
 }
 

@@ -78,6 +78,12 @@ print "Done.\n";
 
 printf( "read \%i nvd entries\n", int keys $nvd_entries );
 
+print "Writing NVD entries to disk...";
+
+$NVD_Updater->put_nvd_entries($nvd_entries);
+
+print " Done.\n";
+
 print "Processing CWE file...";
 
 my $cwe_data = process_cwe_file($cwe);
@@ -100,12 +106,6 @@ print "Done.\n";
 print "Writing CWE data to disk...";
 
 $NVD_Updater->put_cwe_data($cwe_data);
-
-print " Done.\n";
-
-print "Writing NVD entries to disk...";
-
-$NVD_Updater->put_nvd_entries($nvd_entries);
 
 print " Done.\n";
 
