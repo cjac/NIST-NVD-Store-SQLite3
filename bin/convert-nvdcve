@@ -78,6 +78,12 @@ print "Done.\n";
 
 printf( "read \%i nvd entries\n", int keys $nvd_entries );
 
+print "Writing CPE URNs to disk...";
+
+$NVD_Updater->put_cpe( [ keys %vuln_software ] );
+
+print "Done.\n";
+
 print "Writing NVD entries to disk...";
 
 $NVD_Updater->put_nvd_entries($nvd_entries);
@@ -97,9 +103,9 @@ printf( "read \%i cwe Weaknesses\n", int keys $cwe_data->{Weakness} );
 #printf( "read \%i cwe Compound Elements\n",
 #    int keys $cwe_data->{Compound_Element} );
 
-print "Writing CPE URNs to disk...";
+print "Writing CPE index to disk...";
 
-$NVD_Updater->put_cpe( [ keys %vuln_software ] );
+$NVD_Updater->put_cve_idx_cpe( \%vuln_software );
 
 print "Done.\n";
 
@@ -109,14 +115,9 @@ $NVD_Updater->put_cwe_data($cwe_data);
 
 print " Done.\n";
 
-print "Writing CPE index to disk...";
-
-$NVD_Updater->put_cve_idx_cpe( \%vuln_software );
-
-print "Done.\n";
-
 print "Writing CWE index to disk...";
 
+$NVD_Updater->put_cwe_idx_cve( $nvd_entries );
 $NVD_Updater->put_cwe_idx_cpe( \%weaknesses );
 
 print "Done.\n";

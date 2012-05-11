@@ -808,21 +808,6 @@ sub put_nvd_entries {
     $sth{put_cve_insert}->execute(@$_) foreach @insert_args;
     $self->{sqlite}->commit();
 
-    my @cwe_idx_args;
-    while ( my ( $cve_id, $entry ) = ( each %$entries ) ) {
-        my ( $pkey, $friendly ) = $self->_get_cve_id($cve_id);
-
-        # index the cve->cwe relation
-        foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
-					  my ( $cwe_pkey, $cwe_friendly) = $self->_get_cwe_id($cwe_id);
-            next unless $cwe_pkey;
-            push( @cwe_idx_args, [ $cve_id, $cwe_friendly ] );
-        }
-    }
-
-    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
-    $sth{put_cwe_idx_cve_insert}->execute(@$_) foreach @cwe_idx_args;
-    $self->{sqlite}->commit();
 }
 
 =head2 put_cwe_data
@@ -846,7 +831,29 @@ sub put_cwe {
         $sth{put_cwe_insert}->execute( $cwe_dump, $cwe_id );
     }
 
+
     return;
+}
+
+sub put_cwe_idx_cve {
+    my ( $self, $entries ) = @_;
+
+    my @cwe_idx_args;
+    while ( my ( $cve_id, $entry ) = ( each %$entries ) ) {
+        my ( $pkey, $friendly ) = $self->_get_cve_id($cve_id);
+
+        # index the cve->cwe relation
+        foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
+					  my ( $cwe_pkey, $cwe_friendly) = $self->_get_cwe_id($cwe_id);
+            next unless $cwe_pkey;
+            push( @cwe_idx_args, [ $cve_id, $cwe_friendly ] );
+        }
+    }
+
+    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
+    $sth{put_cwe_idx_cve_insert}->execute(@$_) foreach @cwe_idx_args;
+    $self->{sqlite}->commit();
+
 }
 
 sub commit {
