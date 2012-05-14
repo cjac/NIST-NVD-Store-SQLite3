@@ -669,17 +669,17 @@ sub update_websec_idx_cpe {
         $cve_sth->execute( $cpe_row->{id} );
         while ( my $cve_row = $cve_sth->fetchrow_hashref() ) {
 
+						my ( $cve_pkey, $cve_friendly )
+							= $self->_get_cve_id( $cve_row->{cve_id} );
+
             # for each CVE, find all CWEs
-            $cwe_sth->execute( $cve_row->{cve_id} );
+            $cwe_sth->execute( $cve_friendly );
 
             while ( my $cwe_row = $cwe_sth->fetchrow_hashref() ) {
                 my $cwe_id = $cwe_row->{cwe_id};
                 push( @idx_args, [ $cpe_row->{id}, $cwe_id ] );
 
                 my $owasp_cat = $owasp_idx{$cwe_id} // 'other';
-
-                my ( $cve_pkey, $cve_friendly )
-                    = $self->_get_cve_id( $cve_row->{cve_id} );
 
                 push(
                     @{ $websec_score->{ $cpe_row->{urn} }->{$owasp_cat} },
@@ -831,7 +831,6 @@ sub put_cwe {
         $sth{put_cwe_insert}->execute( $cwe_dump, $cwe_id );
     }
 
-
     return;
 }
 
@@ -839,16 +838,38 @@ sub put_cwe_idx_cve {
     my ( $self, $entries ) = @_;
 
     my @cwe_idx_args;
+    my $num_cwes = 0;
     while ( my ( $cve_id, $entry ) = ( each %$entries ) ) {
         my ( $pkey, $friendly ) = $self->_get_cve_id($cve_id);
 
+        $num_cwes += scalar @{ $entry->{'vuln:cwe'} }
+            if exists $entry->{'vuln:cwe'};
+
         # index the cve->cwe relation
         foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
-					  my ( $cwe_pkey, $cwe_friendly) = $self->_get_cwe_id($cwe_id);
-            next unless $cwe_pkey;
+
+            my ( $cwe_friendly, $cwe_pkey );
+
+            if ( $cwe_id =~ /^CWE-\d+$/ ) {
+                $cwe_friendly = $cwe_id;
+            } else {
+                ( $cwe_pkey, $cwe_friendly ) = $self->_get_cwe_id($cwe_id);
+            }
+
+            next unless $cwe_friendly;
+
             push( @cwe_idx_args, [ $cve_id, $cwe_friendly ] );
         }
     }
+
+    print STDERR "\n",
+        sprintf(
+        'indexing cwe by cve.  %d references, %d accounted for, %d CVEs',
+        $num_cwes,
+        scalar @cwe_idx_args,
+        scalar keys %$entries
+        ),
+        "\n";
 
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
     $sth{put_cwe_idx_cve_insert}->execute(@$_) foreach @cwe_idx_args;
