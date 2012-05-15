@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS cpe (
     cve_create => qq{
 CREATE TABLE IF NOT EXISTS cve (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  score   REAL,
   cve_id  VARCHAR(16) CONSTRAINT uniq_cve_id UNIQUE ON CONFLICT FAIL,
   cve_dump BLOB
 )},
@@ -142,10 +143,10 @@ INSERT INTO cve_cwe_map (cve_id,cwe_id)
 VALUES ( ?, ? )
 },
     put_cve_insert => qq{
-INSERT INTO cve ( cve_dump, cve_id ) VALUES (?, ?)
+INSERT INTO cve ( cve_dump, score, cve_id ) VALUES (?, ?, ?)
 },
     put_cve_update => qq{
-UPDATE cve SET cve_dump=? WHERE cve.id=?
+UPDATE cve SET cve_dump=?, score=? WHERE cve.id=?
 },
     put_cwe_insert => qq{
 INSERT INTO cwe ( cwe_dump, cwe_id ) VALUES (?, ?)
@@ -642,6 +643,9 @@ sub update_websec_idx_cpe {
     $q = "SELECT cve_id FROM cpe_cve_map WHERE cpe_id=?";
     my $cve_sth = $dbh->prepare($q);
 
+    $q = "SELECT score FROM cve WHERE id=?";
+    my $cve_score_sth = $dbh->prepare($q);
+
     $q = "SELECT cwe_id FROM cve_cwe_map WHERE cve_id=?";
     my $cwe_sth = $dbh->prepare($q);
 
@@ -669,11 +673,16 @@ sub update_websec_idx_cpe {
         $cve_sth->execute( $cpe_row->{id} );
         while ( my $cve_row = $cve_sth->fetchrow_hashref() ) {
 
-						my ( $cve_pkey, $cve_friendly )
-							= $self->_get_cve_id( $cve_row->{cve_id} );
+            $cve_score_sth->execute( $cve_row->{cve_id} );
+            my $cve_score_row = $cve_score_sth->fetchrow_hashref();
+
+            my $score = $cve_score_row->{score};
+
+            my ( $cve_pkey, $cve_friendly )
+                = $self->_get_cve_id( $cve_row->{cve_id} );
 
             # for each CVE, find all CWEs
-            $cwe_sth->execute( $cve_friendly );
+            $cwe_sth->execute($cve_friendly);
 
             while ( my $cwe_row = $cwe_sth->fetchrow_hashref() ) {
                 my $cwe_id = $cwe_row->{cwe_id};
@@ -684,7 +693,8 @@ sub update_websec_idx_cpe {
                 push(
                     @{ $websec_score->{ $cpe_row->{urn} }->{$owasp_cat} },
                     {   cwe_id => $cwe_id,
-                        cve_id => $cve_friendly
+                        cve_id => $cve_friendly,
+                        score  => $score,
                     },
                 );
             }
@@ -694,29 +704,25 @@ sub update_websec_idx_cpe {
         print STDERR "done\n";
     }
 
-    print Data::Dumper::Dumper($websec_score);
-
     my @websec_score;
     foreach my $cpe_urn ( keys %$websec_score ) {
         my $score = $websec_score->{$cpe_urn};
         my @score;
         foreach my $cat (qw( other A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 )) {
             if ( exists $score->{$cat} ) {
-
-                # TODO: improve the scoring algorithm
-                if ( scalar @{ $score->{$cat} } > 2 ) {
-                    push( @score, 10 );
-                } elsif ( scalar @{ $score->{$cat} } > 1 ) {
-                    push( @score, 6 );
-                } elsif ( scalar @{ $score->{$cat} } > 0 ) {
-                    push( @score, 3 );
+                my $final = 0;
+                foreach my $s ( @{ $score->{$cat} } ) {
+                    $final = $s->{score} if $s->{score} > $final;
                 }
+                push( @score, $final );
             } else {
                 push( @score, 0 );
             }
         }
         push( @websec_score, [ $cpe_urn, @score ] );
     }
+
+    print Data::Dumper::Dumper(\@websec_score);
 
     print STDERR "Committing...";
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
@@ -791,16 +797,22 @@ sub put_nvd_entries {
 
     while ( my ( $cve_id, $entry ) = ( each %$entries ) ) {
         my $frozen = nfreeze($entry);
+
+#				die Data::Dumper::Dumper( $entry->{'vuln:cvss'}->{'cvss:base_metrics'}->{'cvss:score'} );
+        my $score
+            = $entry->{'vuln:cvss'}->{'cvss:base_metrics'}->{'cvss:score'};
         my ( $pkey, $friendly ) = $self->_get_cve_id($cve_id);
         my $sth;
         my $cve_indexed = 0;
 
         # If the CVE is already in the database, update the record
         if ($pkey) {
-            push( @update_args, [ $frozen, $cve_id ] );
+            push( @update_args, [ $frozen, $score, $cve_id ] );
         } else {
-            push( @insert_args, [ $frozen, $cve_id ] );
+            push( @insert_args, [ $frozen, $score, $cve_id ] );
         }
+
+        #				die Data::Dumper::Dumper( \@insert_args );
     }
 
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
