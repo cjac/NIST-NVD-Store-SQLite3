@@ -11,3 +11,4 @@ Revision history for NIST-NVD-Store-SQLite3
 				removed some other stuff
 				Let's see if the nightly tests pass yet...
 
+0.05		created websec index

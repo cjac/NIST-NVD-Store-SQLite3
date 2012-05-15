@@ -121,6 +121,10 @@ SELECT id FROM cwe WHERE cwe.cwe_id=?
     get_cve_select => qq{
 SELECT cve_dump FROM cve WHERE cve.cve_id=?
 },
+    get_websec_score_select_by_cpe => qq{
+SELECT cat_a0, cat_a1, cat_a2, cat_a3, cat_a4, cat_a5, cat_a6, cat_a7,
+  cat_a8, cat_a9, cat_a10 FROM cpe_websec_score WHERE cpe_urn=?
+},
     get_cve_id_select_by_pkey => qq{
 SELECT id,cve_id FROM cve WHERE id=?
 },
@@ -201,6 +205,7 @@ sub new {
         get_cwe_id_select get_cwe_select
         get_cve_id_select_by_pkey
         get_cve_id_select_by_friendly
+        get_websec_score_select_by_cpe
         )
         )
     {
@@ -722,7 +727,7 @@ sub update_websec_idx_cpe {
         push( @websec_score, [ $cpe_urn, @score ] );
     }
 
-    print Data::Dumper::Dumper(\@websec_score);
+    print Data::Dumper::Dumper( \@websec_score );
 
     print STDERR "Committing...";
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
@@ -899,6 +904,61 @@ sub commit {
     }
     $self->{sqlite}->commit();
     delete $commit_buffer->{$buffer_name};
+}
+
+=head2 get_websec_by_cpe
+
+  my $result = $store->get_websec_by_cpe( 'cpe:/a:apache:tomcat:6.0.28' );
+  while( my $websec = shift( @{$result->{websec_results}} ) ){
+    print( "$websec->{key} - $websec->{category}: ".
+           "$websec->{score}\n" );
+  }
+
+=cut
+
+my %cat_name = (
+    A0  => 'Other',
+    A1  => 'Injection',
+    A2  => 'Cross-Site Scripting (XSS)',
+    A3  => 'Broken Authentication and Session Management',
+    A4  => 'Insecure Direct Object References',
+    A5  => 'Cross-Site Request Forgery (CSRF)',
+    A6  => 'Security Misconfiguration',
+    A7  => 'Insecure Cryptographic Storage',
+    A8  => 'Failure to Restrict URL Access',
+    A9  => 'Insufficient Transport Layer Protection',
+    A10 => 'Unvalidated Redirects and Forwards',
+);
+
+sub get_websec_by_cpe {
+    my ( $self, $cpe ) = @_;
+
+    my @websec_results;
+    my %results = ( websec_results => \@websec_results );
+
+    my $sth = $sth{get_websec_score_select_by_cpe};
+
+    $sth->execute();
+
+    my $row = $sth->fetchrow_hashref();
+
+    foreach my $key (
+        qw(cat_a0 cat_a1 cat_a2 cat_a3 cat_a4
+        cat_a5 cat_a6 cat_a7 cat_a8 cat_a9 cat_a10)
+        )
+    {
+        push(
+            @websec_results,
+            {   category => $cat_name{$key},
+                score    => $row->{$key},
+                key      => $key
+            }
+        );
+    }
+
+    return %results if wantarray;
+
+    return \%results;
 }
 
 =head2 get_cwe_ids
