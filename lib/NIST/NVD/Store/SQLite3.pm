@@ -188,9 +188,11 @@ sub new {
     my ( $class, %args ) = @_;
     $class = ref $class || $class;
 
-    my $self = bless { vuln_software => {} }, $class;
+    my $self = $class->SUPER::new(%args);
 
-    $self->{sqlite} = $self->_connect_db( database => $args{database} );
+    $self->{sqlite} = delete $self->{SQLite3};
+
+    $self->{vuln_software} = {};
 
     foreach my $statement (
         qw( put_cpe_insert
@@ -532,7 +534,6 @@ sub get_cwe {
 
     $sth->execute($arg);
 
-    #		print "id=[$arg]";
     my $frozen = $sth->fetchrow_hashref()->{cwe_dump};
 
     my $data = eval { thaw $frozen };
@@ -672,8 +673,6 @@ sub update_websec_idx_cpe {
 
     while ( my $cpe_row = $cpe_sth->fetchrow_hashref() ) {
 
-        print STDERR "Preparing index of CWEs for CPE [$cpe_row->{urn}]...";
-
         # for each cpe, find all CVEs
         $cve_sth->execute( $cpe_row->{id} );
         while ( my $cve_row = $cve_sth->fetchrow_hashref() ) {
@@ -705,8 +704,6 @@ sub update_websec_idx_cpe {
             }
 
         }
-
-        print STDERR "done\n";
     }
 
     my @websec_score;
@@ -727,14 +724,10 @@ sub update_websec_idx_cpe {
         push( @websec_score, [ $cpe_urn, @score ] );
     }
 
-    print Data::Dumper::Dumper( \@websec_score );
-
-    print STDERR "Committing...";
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
     $score_sth->execute(@$_)       foreach @websec_score;
     $cwe_idx_cpe_sth->execute(@$_) foreach @idx_args;
     $self->{sqlite}->commit();
-    print STDERR "done\n";
 
 }
 
@@ -800,10 +793,28 @@ sub put_nvd_entries {
     my @insert_args;
     my @update_args;
 
-    while ( my ( $cve_id, $entry ) = ( each %$entries ) ) {
+    while ( my ( $cve_id, $orig_entry ) = ( each %$entries ) ) {
+        my $entry = {};
+
+        foreach my $preserve (
+            qw(
+            vuln:cve-id
+            vuln:cvss
+            vuln:cwe
+            vuln:discovered-datetime
+            vuln:published-datetime
+            vuln:discovered-datetime
+            vuln:last-modified-datetime
+            vuln:security-protection
+            )
+            )
+        {
+            $entry->{$preserve} = $orig_entry->{$preserve}
+                if exists $orig_entry->{$preserve};
+        }
+
         my $frozen = nfreeze($entry);
 
-#				die Data::Dumper::Dumper( $entry->{'vuln:cvss'}->{'cvss:base_metrics'}->{'cvss:score'} );
         my $score
             = $entry->{'vuln:cvss'}->{'cvss:base_metrics'}->{'cvss:score'};
         my ( $pkey, $friendly ) = $self->_get_cve_id($cve_id);
@@ -817,7 +828,6 @@ sub put_nvd_entries {
             push( @insert_args, [ $frozen, $score, $cve_id ] );
         }
 
-        #				die Data::Dumper::Dumper( \@insert_args );
     }
 
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
@@ -1009,6 +1019,7 @@ sub put_cwe_data {
 
     my $initial_cwe_ids = $self->get_cwe_ids();
 
+    my $count = 0;
     foreach my $element (qw(View Category Weakness Compound_Element)) {
         my $data = $weakness_data->{$element};
         my %cwe_pkey_id;
@@ -1028,12 +1039,9 @@ sub put_cwe_data {
             } else {
                 print STDERR "cwe id [$k] is unrecognized.\n";
             }
-            print STDERR ".";
+            print STDERR "." if ( ++$count % 100 == 0 );
         }
     }
-
-    printf STDERR "inserting \%i rows\n", int(@insert_entries);
-    printf STDERR "updating \%i rows\n",  int(@update_entries);
 
     #    $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
     #    $insert_sth->execute(@$_) foreach @insert_entries;

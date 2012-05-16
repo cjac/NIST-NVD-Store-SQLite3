@@ -117,7 +117,7 @@ print " Done.\n";
 
 print "Writing CWE index to disk...";
 
-$NVD_Updater->put_cwe_idx_cve( $nvd_entries );
+$NVD_Updater->put_cwe_idx_cve($nvd_entries);
 $NVD_Updater->put_cwe_idx_cpe( \%weaknesses );
 
 print "Done.\n";
@@ -126,7 +126,7 @@ print "Writing websec index to disk...";
 
 $NVD_Updater->update_websec_idx_cpe( \%weaknesses );
 
-print "Done.\n";
+print "Done\n";
 
 sub process_nvd_file {
 
@@ -154,7 +154,7 @@ sub process_nvd_file {
             if ($header) {
                 $entry_body = $content;
                 my $xml_string = $header . $entry_body . $footer;
-                print(".");
+								print '.';
                 my %entry = process_nvd($xml_string);
 
                 while ( my ( $cve_id, $entry ) = each %entry ) {
@@ -469,6 +469,8 @@ sub process_cwe_file {
         Compound_Element => 'Compound_Elements',
     );
 
+		my $weakness_count = 0;
+
     while ( my $line = <$cwe_fd> ) {
         if (   $line =~ /(^.*?)<(View|Category|Weakness|Compound_Element)[> ]/
             || $line =~ m:(^.*?)</Weakness_Catalog>:    # last entry
@@ -514,6 +516,10 @@ sub process_cwe_file {
                 || $current_element eq 'Weakness'
                 || $current_element eq 'Compound_Element' );
 
+            print 'w'
+                if $current_element eq 'Weakness'
+                    && ++$weakness_count % 100 == 0;
+
             my ( $id, $element ) = $function->($xml_string);
 
             my $cwe_id;
@@ -536,16 +542,15 @@ sub process_cwe_file {
 
                 # TODO: Update
             } else {
-							my $frozen = nfreeze($element);
+                my $frozen = nfreeze($element);
 
                 $NVD_Updater->put_cwe(
                     cwe_id        => $id,
-                    cwe_dump      => nfreeze( $element ),
+                    cwe_dump      => nfreeze($element),
                     transactional => 1,
                 );
 
             }
-
 
             $iter++;
 
@@ -566,7 +571,7 @@ sub process_cwe_file {
 
     }
 
-		$NVD_Updater->commit('put_cwe_insert');
+    $NVD_Updater->commit('put_cwe_insert');
 
     return $CWE_Entry_HASH;
 }
@@ -575,8 +580,6 @@ sub process_weakness {
     my ($weakness_xml) = @_;
 
     my $results = {};
-
-    print "w";
 
     my $xp = eval { XML::XPath->new( xml => $weakness_xml ) };
     croak "couldn't parse xml:\n" . $weakness_xml . "\n\n" . $@ if $@;
