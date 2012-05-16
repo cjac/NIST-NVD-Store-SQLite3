@@ -17,11 +17,11 @@ NIST::NVD::Store::SQLite3 - SQLite3 store for NIST::NVD
 
 =head1 VERSION
 
-Version 0.04
+Version 0.05
 
 =cut
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 my %query = (
     cpe_create => qq{
@@ -790,19 +790,7 @@ sub put_nvd_entries {
     while ( my ( $cve_id, $orig_entry ) = ( each %$entries ) ) {
         my $entry = {};
 
-        foreach my $preserve (
-            qw(
-            vuln:cve-id
-            vuln:cvss
-            vuln:cwe
-            vuln:discovered-datetime
-            vuln:published-datetime
-            vuln:discovered-datetime
-            vuln:last-modified-datetime
-            vuln:security-protection
-            )
-            )
-        {
+        foreach my $preserve ( $self->_important_fields() ) {
             $entry->{$preserve} = $orig_entry->{$preserve}
                 if exists $orig_entry->{$preserve};
         }

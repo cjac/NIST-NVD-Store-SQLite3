@@ -50,6 +50,10 @@ my $NVD_Updater = NIST::NVD::Update->new(
     database => $db_file,
 );
 
+my %important_fields;
+
+$important_fields{$_}++ foreach $NVD_Updater->{store}->_important_fields();
+
 my $cwe_ids = $NVD_Updater->get_cwe_ids();
 
 my %vuln_software;
@@ -94,7 +98,7 @@ print "Processing CWE file...";
 
 my $cwe_data = process_cwe_file($cwe);
 
-print "Done.\n";
+print "\nDone processing CWE file.\n";
 
 printf( "read \%i cwe Views\n",      int keys $cwe_data->{View} );
 printf( "read \%i cwe Categories\n", int keys $cwe_data->{Category} );
@@ -145,6 +149,8 @@ sub process_nvd_file {
     open( $nvdcve_fd, q{<}, $filename )
         or die qq{couldn't open "$filename": $!};
 
+    my $entry_count = 0;
+
     while ( my $line = <$nvdcve_fd> ) {
 
         if ( $line =~ /(^.*?)<entry/ ) {
@@ -154,7 +160,7 @@ sub process_nvd_file {
             if ($header) {
                 $entry_body = $content;
                 my $xml_string = $header . $entry_body . $footer;
-								print '.';
+                print '.' if ++$entry_count % 100 == 0;
                 my %entry = process_nvd($xml_string);
 
                 while ( my ( $cve_id, $entry ) = each %entry ) {
@@ -215,7 +221,7 @@ sub process_nvd {
 
     return (%entry);
 
-    #  $xp->dispose();
+    #$xp->dispose();
 }
 
 sub process_entry {
@@ -225,7 +231,11 @@ sub process_entry {
 
     foreach my $vuln ( $entry->getChildNodes() ) {
         next unless $vuln->getName();
+
         my $nodeName = $vuln->getName();
+
+        # skip the dull bits
+        next unless exists $important_fields{$nodeName};
 
         if ( $nodeName eq 'vuln:vulnerable-configuration' ) {
             push( @{ $results->{$nodeName} }, process_vuln_config($vuln) );
@@ -469,7 +479,7 @@ sub process_cwe_file {
         Compound_Element => 'Compound_Elements',
     );
 
-		my $weakness_count = 0;
+    my $weakness_count = 0;
 
     while ( my $line = <$cwe_fd> ) {
         if (   $line =~ /(^.*?)<(View|Category|Weakness|Compound_Element)[> ]/
