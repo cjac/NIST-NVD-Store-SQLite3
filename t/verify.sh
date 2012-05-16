@@ -1,10 +1,11 @@
 #!/bin/bash
 
+SQLITE_DIR=$CWD
 rm *.db
-pushd ../NIST-NVD
+cd /usr/src/git/f5/NIST-NVD
 perl Makefile.PL && \
 make && \
-popd
+cd /usr/src/git/f5/NIST-NVD-Store-SQLite3
 perl Makefile.PL && \
 make && \
 perl -I $PWD/blib/lib\

@@ -2,7 +2,7 @@ package NIST::NVD::Store::SQLite3;
 
 use NIST::NVD::Store::Base;
 use base qw{NIST::NVD::Store::Base};
-use Carp;
+use Carp(qw(carp confess cluck));
 
 use warnings;
 use strict;
@@ -323,7 +323,7 @@ sub _get_cve_id {
     } elsif ( $cve_id =~ /^CVE-\d+-\d+/ ) {
         $sth = $sth{get_cve_id_select_by_friendly};
     } else {
-        print STDERR "cve id malformed\n";
+        confess "cve id malformed\n";
         die;
     }
 
@@ -351,11 +351,10 @@ sub _get_cwe_id {
 
     } elsif ( $cwe_id =~ /^CWE-\d+/ ) {
 
-        #        print STDERR "CWE ID is friendly\n";
         $sth = $self->{sqlite}
             ->prepare('SELECT id,cwe_id FROM cwe WHERE cwe_id=?');
     } else {
-        print STDERR "cwe id malformed\n";
+        cluck "cwe id malformed\n";
         return;
     }
 
@@ -383,7 +382,7 @@ sub _get_cpe_id {
     # TODO: Assert that this query only returns one result
     my $rows = 0;
     while ( my $row = $sth{get_cpe_id_select}->fetchrow_hashref() ) {
-        print STDERR
+        carp
             "multiple ($rows) results for value intended to be unique.  cpe_urn: [$cpe_urn]\n"
             if ( $rows != 0 );
         $self->{cpe_map}->{$cpe_urn} = $row->{id};
@@ -618,11 +617,6 @@ sub put_cwe_idx_cpe {
             push( @params, [ $cpe_pkey_id, $cwe_pkey_id ] );
         }
     }
-
-    printf STDERR 'there are %i unique CPE URNs.' . "\n",
-        int( keys %$weaknesses );
-
-    printf STDERR 'inserting %i rows' . "\n", int(@params);
 
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
     $sth{put_cwe_idx_cpe_insert}->execute(@$_) foreach (@params);
@@ -889,15 +883,6 @@ sub put_cwe_idx_cve {
         }
     }
 
-    print STDERR "\n",
-        sprintf(
-        'indexing cwe by cve.  %d references, %d accounted for, %d CVEs',
-        $num_cwes,
-        scalar @cwe_idx_args,
-        scalar keys %$entries
-        ),
-        "\n";
-
     $self->{sqlite}->do("BEGIN IMMEDIATE TRANSACTION");
     $sth{put_cwe_idx_cve_insert}->execute(@$_) foreach @cwe_idx_args;
     $self->{sqlite}->commit();
@@ -1037,9 +1022,9 @@ sub put_cwe_data {
             } elsif ( $k =~ /^CWE-\d+$/ ) {
                 push( @insert_entries, [ $frozen, $cwe_id ] );
             } else {
-                print STDERR "cwe id [$k] is unrecognized.\n";
+                carp "cwe id [$k] is unrecognized.\n";
             }
-            print STDERR "." if ( ++$count % 100 == 0 );
+            print STDERR '.' if ( ++$count % 100 == 0 );
         }
     }
 
