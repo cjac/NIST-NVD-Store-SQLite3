@@ -1,13 +1,16 @@
 #!/bin/bash
 
-SQLITE_DIR=$CWD
 rm *.db
 cd /usr/src/git/f5/NIST-NVD
-perl Makefile.PL && \
-make && \
+perl Makefile.PL
+if [ $? -ne 0 ]; then echo "fail!"; exit ; fi
+make
+if [ $? -ne 0 ]; then echo "fail!"; exit ; fi
 cd /usr/src/git/f5/NIST-NVD-Store-SQLite3
-perl Makefile.PL && \
-make && \
+perl Makefile.PL
+if [ $? -ne 0 ]; then echo "fail!"; exit ; fi
+make
+if [ $? -ne 0 ]; then echo "fail!"; exit ; fi
 perl -I $PWD/blib/lib\
      -I /usr/src/git/f5/NIST-NVD/blib/lib\
  /usr/src/git/f5/NIST-NVD-Store-SQLite3/bin/convert-nvdcve\
