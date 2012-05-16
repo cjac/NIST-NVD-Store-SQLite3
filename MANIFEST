@@ -17,5 +17,6 @@ t/update.t
 t/insert.t
 t/query.t
 t/cwe.t
+t/verify.sh
 bin/convert-nvdcve
 t/data/cwec_v2.1.xml
