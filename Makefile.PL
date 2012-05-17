@@ -12,16 +12,12 @@ WriteMakefile(
     LICENSE        => 'perl',
     PL_FILES       => {},
     BUILD_REQUIRES => {
-        'File::MMagic'          => 0,
-        'File::LibMagic'        => 0,
         'Test::More'            => 0,
-        'Test::File'            => 0,
         'Test::Pod::Coverage'   => 0,
         'Test::Pod'             => 0,
         'Perl::Critic'          => 0,
         'XML::XPath'            => 0,
         'XML::XPath::XMLParser' => 0,
-        'Perl::Critic'          => 0,
     },
     PREREQ_PM => {
         'Time::HiRes'  => 0,
