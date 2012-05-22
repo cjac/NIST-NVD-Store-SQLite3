@@ -1,7 +1,11 @@
 package NIST::NVD::Store::SQLite3;
 
 use NIST::NVD::Store::Base;
+
 use base qw{NIST::NVD::Store::Base};
+
+push @ISA, qw{NIST::NVD::Store::Base};
+
 use Carp(qw(carp confess cluck));
 
 use warnings;
@@ -188,9 +192,18 @@ sub new {
     my ( $class, %args ) = @_;
     $class = ref $class || $class;
 
-    my $self = $class->SUPER::new(%args);
+    #    my $self = $class->SUPER::new(%args);
 
-    $self->{sqlite} = delete $self->{SQLite3};
+    my $self = bless { store => $args{store} }, $class;
+
+    my $store = $args{store};
+
+    carp('database argument is required, but was not passed')
+        unless exists $args{database};
+
+    $self->{$store} = $self->_connect_db( database => $args{database} );
+
+    $self->{sqlite} = $self->{SQLite3};
 
     $self->{vuln_software} = {};
 
@@ -1022,6 +1035,23 @@ sub put_cwe_data {
     #    $self->{sqlite}->commit();
 
 }
+
+sub _important_fields {
+	return
+            qw(
+            vuln:cve-id
+            vuln:cvss
+            vuln:cwe
+            vuln:discovered-datetime
+            vuln:published-datetime
+            vuln:discovered-datetime
+            vuln:last-modified-datetime
+            vuln:security-protection
+						vuln:vulnerable-software-list
+            );
+
+}
+
 
 =head1 AUTHOR
 
