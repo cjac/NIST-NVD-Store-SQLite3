@@ -12,3 +12,7 @@ Revision history for NIST-NVD-Store-SQLite3
 				Let's see if the nightly tests pass yet...
 
 0.05		created websec index
+
+0.07		Looks like websec results are working as expected.
+				Peer review would be nice.
+				Tests haven't been run thoroughly.  They're probably failing.

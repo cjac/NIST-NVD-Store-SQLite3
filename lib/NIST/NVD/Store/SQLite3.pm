@@ -21,11 +21,11 @@ NIST::NVD::Store::SQLite3 - SQLite3 store for NIST::NVD
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 my %query = (
     cpe_create => qq{
@@ -198,8 +198,10 @@ sub new {
 
     my $store = $args{store};
 
-    carp('database argument is required, but was not passed')
-        unless exists $args{database};
+    unless ( exists $args{database} && $args{database} ) {
+        confess('database argument is required, but was not passed');
+        return;
+    }
 
     $self->{$store} = $self->_connect_db( database => $args{database} );
 
@@ -222,10 +224,10 @@ sub new {
         get_cve_id_select_by_friendly
         get_websec_score_select_by_cpe
         )
-        )
+      )
     {
         $sth{$statement} = $self->{sqlite}->prepare( $query{$statement} )
-            or die "couldn't prepare statement '$statement'";
+          or die "couldn't prepare statement '$statement'";
     }
     my $fail = 0;
 
@@ -247,7 +249,7 @@ sub _connect_db {
         cwe_create cpe_cwe_map_create
         verify_cwe_pkid
         )
-        )
+      )
     {
 
         my $query = $query{$statement};
@@ -275,7 +277,8 @@ sub get_cve_for_cpe {
     my $cpe_pkey_id;
     if ( $cpe =~ /^\d+$/ ) {
         $cpe_pkey_id = $cpe;
-    } else {
+    }
+    else {
         ( my ( $cpe, @parts ) ) = ( $args{cpe} =~ $cpe_urn_re );
         $cpe_pkey_id = $self->_get_cpe_id($cpe);
     }
@@ -305,7 +308,8 @@ sub get_cwe_for_cpe {
     my $cpe_pkey_id;
     if ( $cpe =~ /^\d+$/ ) {
         $cpe_pkey_id = $cpe;
-    } else {
+    }
+    else {
         ( my ( $cpe, @parts ) ) = ( $args{cpe} =~ $cpe_urn_re );
         $cpe_pkey_id = $self->_get_cpe_id($cpe);
     }
@@ -333,9 +337,11 @@ sub _get_cve_id {
 
     if ( $cve_id =~ /^\d+$/ ) {
         $sth = $sth{get_cve_id_select_by_pkey};
-    } elsif ( $cve_id =~ /^CVE-\d+-\d+/ ) {
+    }
+    elsif ( $cve_id =~ /^CVE-\d+-\d+/ ) {
         $sth = $sth{get_cve_id_select_by_friendly};
-    } else {
+    }
+    else {
         confess "cve id malformed\n";
         die;
     }
@@ -359,14 +365,15 @@ sub _get_cwe_id {
     my $sth;
 
     if ( $cwe_id =~ /^\d+$/ ) {
-        $sth = $self->{sqlite}
-            ->prepare('SELECT id,cwe_id FROM cwe WHERE id=?');
+        $sth = $self->{sqlite}->prepare('SELECT id,cwe_id FROM cwe WHERE id=?');
 
-    } elsif ( $cwe_id =~ /^CWE-\d+/ ) {
+    }
+    elsif ( $cwe_id =~ /^CWE-\d+/ ) {
 
-        $sth = $self->{sqlite}
-            ->prepare('SELECT id,cwe_id FROM cwe WHERE cwe_id=?');
-    } else {
+        $sth =
+          $self->{sqlite}->prepare('SELECT id,cwe_id FROM cwe WHERE cwe_id=?');
+    }
+    else {
         cluck "cwe id malformed\n";
         return;
     }
@@ -381,14 +388,14 @@ sub _get_cwe_id {
     $cwe_id_cache{$cwe_id} = [ $row->{qw{id cwe_id}} ];
     \
 
-        return ( $row->{qw{id cwe_id}} );
+      return ( $row->{qw{id cwe_id}} );
 }
 
 sub _get_cpe_id {
     my ( $self, $cpe_urn ) = @_;
 
     return $self->{cpe_map}->{$cpe_urn}
-        if ( exists $self->{cpe_map}->{$cpe_urn} );
+      if ( exists $self->{cpe_map}->{$cpe_urn} );
 
     $sth{get_cpe_id_select}->execute($cpe_urn);
 
@@ -396,8 +403,8 @@ sub _get_cpe_id {
     my $rows = 0;
     while ( my $row = $sth{get_cpe_id_select}->fetchrow_hashref() ) {
         carp
-            "multiple ($rows) results for value intended to be unique.  cpe_urn: [$cpe_urn]\n"
-            if ( $rows != 0 );
+"multiple ($rows) results for value intended to be unique.  cpe_urn: [$cpe_urn]\n"
+          if ( $rows != 0 );
         $self->{cpe_map}->{$cpe_urn} = $row->{id};
     }
 
@@ -408,7 +415,7 @@ sub _get_query {
     my ( $self, $query_name ) = @_;
 
     return $query{$query_name}
-        if ($query_name);
+      if ($query_name);
 
     return %query if wantarray;
 
@@ -476,19 +483,15 @@ my %latest_OWASP_ten = (
         members => [ 'CWE-287', 'CWE-306', 'CWE-307', 'CWE-798', 'CWE-798', ],
     },
     'A4' => {
-        id      => 'CWE-813',
-        members => [
-            'CWE-22',  'CWE-434', 'CWE-639', 'CWE-829',
-            'CWE-862', 'CWE-863'
-        ]
+        id => 'CWE-813',
+        members =>
+          [ 'CWE-22', 'CWE-434', 'CWE-639', 'CWE-829', 'CWE-862', 'CWE-863' ]
     },
     'A5' => { id => 'CWE-814', members => ['CWE-352'] },
     'A6' => {
-        id      => 'CWE-815',
-        members => [
-            'CWE-209', 'CWE-219', 'CWE-250', 'CWE-538',
-            'CWE-552', 'CWE-732',
-        ]
+        id => 'CWE-815',
+        members =>
+          [ 'CWE-209', 'CWE-219', 'CWE-250', 'CWE-538', 'CWE-552', 'CWE-732', ]
     },
     'A7' => {
         id      => 'CWE-816',
@@ -533,14 +536,14 @@ sub get_cwe {
 
     if ( exists $args{id} ) {
         die "id [$args{id}] is malformed" unless $args{id} =~ /^\d+$/;
-        $sth
-            = $self->{sqlite}->prepare('SELECT cwe_dump FROM cwe WHERE id=?');
+        $sth = $self->{sqlite}->prepare('SELECT cwe_dump FROM cwe WHERE id=?');
         $arg = $args{id};
-    } elsif ( exists $args{cwe_id} ) {
+    }
+    elsif ( exists $args{cwe_id} ) {
         die "cwe_id [$args{cwe_id}] is malformed"
-            unless $args{cwe_id} =~ /^CWE-\d+/;
-        $sth = $self->{sqlite}
-            ->prepare('SELECT cwe_dump FROM cwe WHERE cwe_id=?');
+          unless $args{cwe_id} =~ /^CWE-\d+/;
+        $sth =
+          $self->{sqlite}->prepare('SELECT cwe_dump FROM cwe WHERE cwe_id=?');
         $arg = $args{cwe_id};
     }
 
@@ -609,8 +612,7 @@ sub put_cwe_idx_cpe {
 
     my $initial_cwe_ids = $self->get_cwe_ids();
 
-    my (%cpe_pkey_id)
-        = map { $_ => $self->_get_cpe_id($_) } keys %$weaknesses;
+    my (%cpe_pkey_id) = map { $_ => $self->_get_cpe_id($_) } keys %$weaknesses;
 
     my @params;
     while ( my ( $cpe_urn, $cwe_id ) = ( each %$weaknesses ) ) {
@@ -664,12 +666,12 @@ sub update_websec_idx_cpe {
 
     my $cwe_idx_cpe_sth = $self->_get_sth('put_cwe_idx_cpe_insert');
 
-    $q
-        = (   "INSERT INTO cpe_websec_score ("
-            . "cpe_urn,cat_a0,cat_a1,cat_a2,cat_a3,cat_a4,cat_a5,cat_a6,cat_a7,cat_a8,cat_a9,cat_a10"
-            . ") VALUES ("
-            . "?,?,?,?,?,?,?,?,?,?,?,?"
-            . ")" );
+    $q =
+      (     "INSERT INTO cpe_websec_score ("
+          . "cpe_urn,cat_a0,cat_a1,cat_a2,cat_a3,cat_a4,cat_a5,cat_a6,cat_a7,cat_a8,cat_a9,cat_a10"
+          . ") VALUES ("
+          . "?,?,?,?,?,?,?,?,?,?,?,?"
+          . ")" );
     my $score_sth = $dbh->prepare($q);
 
     $cpe_sth->execute();
@@ -689,8 +691,8 @@ sub update_websec_idx_cpe {
 
             my $score = $cve_score_row->{score};
 
-            my ( $cve_pkey, $cve_friendly )
-                = $self->_get_cve_id( $cve_row->{cve_id} );
+            my ( $cve_pkey, $cve_friendly ) =
+              $self->_get_cve_id( $cve_row->{cve_id} );
 
             # for each CVE, find all CWEs
             $cwe_sth->execute($cve_friendly);
@@ -703,7 +705,8 @@ sub update_websec_idx_cpe {
 
                 push(
                     @{ $websec_score->{ $cpe_row->{urn} }->{$owasp_cat} },
-                    {   cwe_id => $cwe_id,
+                    {
+                        cwe_id => $cwe_id,
                         cve_id => $cve_friendly,
                         score  => $score,
                     },
@@ -724,7 +727,8 @@ sub update_websec_idx_cpe {
                     $final = $s->{score} if $s->{score} > $final;
                 }
                 push( @score, $final );
-            } else {
+            }
+            else {
                 push( @score, 0 );
             }
         }
@@ -756,20 +760,22 @@ sub put_cpe {
 
     while ( my $row = $sth->fetchrow_hashref() ) {
         delete $cpe_urn{ $row->{cpe_urn} }
-            if exists $cpe_urn{ $row->{cpe_urn} };
+          if exists $cpe_urn{ $row->{cpe_urn} };
     }
 
     my @params;
     foreach my $urn ( keys %cpe_urn ) {
         next if $inserted_cpe{$urn}++;
 
-        my ($prefix,  $nada,   $part,    $vendor, $product,
+        my (
+            $prefix,  $nada,   $part,    $vendor, $product,
             $version, $update, $edition, $language
         ) = split( m{[/:]}, $urn );
 
         push(
             @params,
-            [   $urn,     $part,   $vendor,  $product,
+            [
+                $urn,     $part,   $vendor,  $product,
                 $version, $update, $edition, $language
             ]
         );
@@ -805,13 +811,13 @@ sub put_nvd_entries {
 
         foreach my $preserve ( $self->_important_fields() ) {
             $entry->{$preserve} = $orig_entry->{$preserve}
-                if exists $orig_entry->{$preserve};
+              if exists $orig_entry->{$preserve};
         }
 
         my $frozen = nfreeze($entry);
 
-        my $score
-            = $entry->{'vuln:cvss'}->{'cvss:base_metrics'}->{'cvss:score'};
+        my $score =
+          $entry->{'vuln:cvss'}->{'cvss:base_metrics'}->{'cvss:score'};
         my ( $pkey, $friendly ) = $self->_get_cve_id($cve_id);
         my $sth;
         my $cve_indexed = 0;
@@ -819,7 +825,8 @@ sub put_nvd_entries {
         # If the CVE is already in the database, update the record
         if ($pkey) {
             push( @update_args, [ $frozen, $score, $cve_id ] );
-        } else {
+        }
+        else {
             push( @insert_args, [ $frozen, $score, $cve_id ] );
         }
 
@@ -849,7 +856,8 @@ sub put_cwe {
 
     if ( exists $args{transactional} ) {
         push( @{ $commit_buffer->{put_cwe_insert} }, [ $cwe_dump, $cwe_id ] );
-    } else {
+    }
+    else {
         $sth{put_cwe_insert}->execute( $cwe_dump, $cwe_id );
     }
 
@@ -865,7 +873,7 @@ sub put_cwe_idx_cve {
         my ( $pkey, $friendly ) = $self->_get_cve_id($cve_id);
 
         $num_cwes += scalar @{ $entry->{'vuln:cwe'} }
-            if exists $entry->{'vuln:cwe'};
+          if exists $entry->{'vuln:cwe'};
 
         # index the cve->cwe relation
         foreach my $cwe_id ( @{ $entry->{'vuln:cwe'} } ) {
@@ -874,7 +882,8 @@ sub put_cwe_idx_cve {
 
             if ( $cwe_id =~ /^CWE-\d+$/ ) {
                 $cwe_friendly = $cwe_id;
-            } else {
+            }
+            else {
                 ( $cwe_pkey, $cwe_friendly ) = $self->_get_cwe_id($cwe_id);
             }
 
@@ -913,39 +922,40 @@ sub commit {
 =cut
 
 my %cat_name = (
-    A0  => 'Other',
-    A1  => 'Injection',
-    A2  => 'Cross-Site Scripting (XSS)',
-    A3  => 'Broken Authentication and Session Management',
-    A4  => 'Insecure Direct Object References',
-    A5  => 'Cross-Site Request Forgery (CSRF)',
-    A6  => 'Security Misconfiguration',
-    A7  => 'Insecure Cryptographic Storage',
-    A8  => 'Failure to Restrict URL Access',
-    A9  => 'Insufficient Transport Layer Protection',
-    A10 => 'Unvalidated Redirects and Forwards',
+    cat_a0  => 'Other',
+    cat_a1  => 'Injection',
+    cat_a2  => 'Cross-Site Scripting (XSS)',
+    cat_a3  => 'Broken Authentication and Session Management',
+    cat_a4  => 'Insecure Direct Object References',
+    cat_a5  => 'Cross-Site Request Forgery (CSRF)',
+    cat_a6  => 'Security Misconfiguration',
+    cat_a7  => 'Insecure Cryptographic Storage',
+    cat_a8  => 'Failure to Restrict URL Access',
+    cat_a9  => 'Insufficient Transport Layer Protection',
+    cat_a10 => 'Unvalidated Redirects and Forwards',
 );
 
 sub get_websec_by_cpe {
-    my ( $self, $cpe ) = @_;
+    my ( $s, $self, $cpe ) = @_;
 
     my @websec_results;
     my %results = ( websec_results => \@websec_results );
 
     my $sth = $sth{get_websec_score_select_by_cpe};
 
-    $sth->execute();
+    $sth->execute($cpe);
 
     my $row = $sth->fetchrow_hashref();
 
     foreach my $key (
         qw(cat_a0 cat_a1 cat_a2 cat_a3 cat_a4
         cat_a5 cat_a6 cat_a7 cat_a8 cat_a9 cat_a10)
-        )
+      )
     {
         push(
             @websec_results,
-            {   category => $cat_name{$key},
+            {
+                category => $cat_name{$key},
                 score    => $row->{$key},
                 key      => $key
             }
@@ -1020,9 +1030,11 @@ sub put_cwe_data {
 
             if ($cwe_pkey_id) {
                 push( @update_entries, [ $frozen, $cwe_pkey_id ] );
-            } elsif ( $k =~ /^CWE-\d+$/ ) {
+            }
+            elsif ( $k =~ /^CWE-\d+$/ ) {
                 push( @insert_entries, [ $frozen, $cwe_id ] );
-            } else {
+            }
+            else {
                 carp "cwe id [$k] is unrecognized.\n";
             }
             print STDERR '.' if ( ++$count % 100 == 0 );
@@ -1037,21 +1049,19 @@ sub put_cwe_data {
 }
 
 sub _important_fields {
-	return
-            qw(
-            vuln:cve-id
-            vuln:cvss
-            vuln:cwe
-            vuln:discovered-datetime
-            vuln:published-datetime
-            vuln:discovered-datetime
-            vuln:last-modified-datetime
-            vuln:security-protection
-						vuln:vulnerable-software-list
-            );
+    return qw(
+      vuln:cve-id
+      vuln:cvss
+      vuln:cwe
+      vuln:discovered-datetime
+      vuln:published-datetime
+      vuln:discovered-datetime
+      vuln:last-modified-datetime
+      vuln:security-protection
+      vuln:vulnerable-software-list
+    );
 
 }
-
 
 =head1 AUTHOR
 
