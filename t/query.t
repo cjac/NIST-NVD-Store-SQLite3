@@ -36,7 +36,7 @@ $cve_id_list = $q->cve_for_cpe( cpe => $cpe_urn );
 
 is( ref $cve_id_list, 'ARRAY', 'cve_for_cpe returned ARRAY ref' );
 
-is( int(@$cve_id_list), 1, 'correct number of CVEs returned for this CPE' )
+is( int(@$cve_id_list), 2, 'correct number of CVEs returned for this CPE' )
     or diag "cve_for_cpe( cpe => $cpe_urn )";
 
 foreach my $cve_entry (@$cve_id_list) {
