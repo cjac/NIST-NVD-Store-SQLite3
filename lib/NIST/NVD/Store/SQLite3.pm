@@ -640,9 +640,11 @@ sub put_cwe_idx_cpe {
     return;
 }
 
-=head2 update_websec_idx
+=head2 update_websec_idx_cpe
 
-  $Updater->update_websec_idx();
+  $Updater->update_websec_idx_cpe({ cpe_urn[$i] => [ $cwe_id[20], $cwe_id[7], $cwe_id[235], ... $cwe_id[$n], ],
+                                    cpe_urn[$j] => [ $cwe_id[42], $cwe_id[$k], $cwe_id[72], ... $cwe_id[$j], ],
+                                    ... => });
 
 =cut
 
@@ -840,7 +842,7 @@ sub put_nvd_entries {
 
 }
 
-=head2 put_cwe_data
+=head2 put_cwe
 
   $result = $self->put_cwe( cwe_id   => 'CWE-42',
                             cwe_dump => $cwe_dump );
@@ -864,6 +866,16 @@ sub put_cwe {
 
     return;
 }
+
+=head2 put_cwe_idx_cve
+
+  $result = $store->put_cwe_idx_cve({ $cve_id[0] => $entry[0],
+                                      $cve_id[1] => $entry[1],
+                                      # ...
+                                      $cve_id[$n] => $entry[$n],
+                                     });
+
+=cut
 
 sub put_cwe_idx_cve {
     my ( $self, $entries ) = @_;
@@ -900,7 +912,7 @@ sub put_cwe_idx_cve {
 
 }
 
-sub commit {
+sub _commit {
     my ( $self, $buffer_name ) = @_;
 
     $self->{sqlite}->do('BEGIN IMMEDIATE TRANSACTION');
