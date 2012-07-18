@@ -46,7 +46,9 @@ foreach my $cve_entry (@$cve_id_list) {
 
 is_deeply(
     $cve_id_list,
-    [ 'CVE-2011-4682', 'CVE-2011-4685', 'CVE-2011-4687' ],
+    [   'CVE-2011-4681', 'CVE-2011-4682', 'CVE-2011-4683', 'CVE-2011-4684',
+        'CVE-2011-4685', 'CVE-2011-4686', 'CVE-2011-4687',
+    ],
     'Correct list of CVE IDs'
 ) or diag Data::Dumper::Dumper($cve_id_list);
 
