@@ -135,7 +135,7 @@ is( ref $data, 'HASH', 'CWE data is a HASH ref' );
 
 is_deeply(
     $data,
-    {   'ID'        => '264',
+    {   'ID'        => 'CWE-264',
         'Status'    => 'Incomplete',
         'Languages' => [
             { 'Language_Class' => { 'Language_Class_Description' => 'All' } }
