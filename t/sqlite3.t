@@ -35,11 +35,13 @@ my $cve = $sqlite3->get_cve_for_cpe( cpe => $cpe_urn );
 ok( $cve, 'get_cve_for_cpe returned defined value' );
 isa_ok( $cve, 'ARRAY', '$cve' );
 
-is( scalar @$cve, 3, 'cve list has correct number of elements' );
+is( scalar @$cve, 7, 'cve list has correct number of elements' );
 
 is_deeply(
     $cve,
-    [ 'CVE-2011-4682', 'CVE-2011-4685', 'CVE-2011-4687' ],
+    [   'CVE-2011-4681', 'CVE-2011-4682', 'CVE-2011-4683', 'CVE-2011-4684',
+        'CVE-2011-4685', 'CVE-2011-4686', 'CVE-2011-4687'
+    ],
     'cve list contains the right elements'
 ) or diag Data::Dumper::Dumper($cve);
 
