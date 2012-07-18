@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 9;
+use Test::More tests => 10;
 use FindBin qw($Bin);
 use Data::Dumper;
 
@@ -34,14 +34,17 @@ $cve_id_list = $q->cve_for_cpe( cpe => 'cpe:/a:microsoft:ie:7.0.5730.11' );
 
 is( ref $cve_id_list, 'ARRAY', 'cve_for_cpe returned ARRAY ref' );
 
-is( int(@$cve_id_list), 1, 'correct number of CVEs returned for this CPE' );
+is( int(@$cve_id_list), 2, 'correct number of CVEs returned for this CPE' );
 
 foreach my $cve_entry (@$cve_id_list) {
     like( $cve_entry, qr{^CVE-\d{4,}-\d{4}$}, 'format of CVE ID is correct' );
 }
 
-is_deeply( $cve_id_list, ['CVE-2010-5071'], 'Correct list of CVE IDs' )
-    or diag Data::Dumper::Dumper($cve_id_list);
+is_deeply(
+    $cve_id_list,
+    [ 'CVE-2002-2435', 'CVE-2010-5071' ],
+    'Correct list of CVE IDs'
+) or diag Data::Dumper::Dumper($cve_id_list);
 
 my $entry = $q->cve( cve_id => $cve_id_list->[0] );
 
@@ -53,14 +56,14 @@ is_deeply(
     $cvss,
     {   'cvss:base_metrics' => {
             'cvss:confidentiality-impact' => 'PARTIAL',
-            'cvss:score'                  => '5.0',
+            'cvss:score'                  => '4.3',
             'cvss:authentication'         => 'NONE',
             'cvss:access-vector'          => 'NETWORK',
             'cvss:source'                 => 'http://nvd.nist.gov',
-            'cvss:generated-on-datetime'  => '2011-12-08T08:04:00.000-05:00',
+            'cvss:generated-on-datetime'  => '2011-12-08T06:47:00.000-05:00',
             'cvss:availability-impact'    => 'NONE',
             'cvss:integrity-impact'       => 'NONE',
-            'cvss:access-complexity'      => 'LOW'
+            'cvss:access-complexity'      => 'MEDIUM'
         }
     },
     'extracting cvss worked'
