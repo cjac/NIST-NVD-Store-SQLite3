@@ -24,7 +24,7 @@ WriteMakefile(
         DBI            => 0,
         'DBD::SQLite'  => 0,
         'XML::XPath'   => 0,
-        'NIST::NVD'    => 0.12,
+        'NIST::NVD'    => 1,
     },
     dist  => { COMPRESS => 'bzip2 -9f', SUFFIX => 'bz2', },
     clean => { FILES    => 'NIST-NVD-Store-SQLite3-*' },
