@@ -43,7 +43,12 @@ foreach my $cve_entry (@$cve_id_list) {
     like( $cve_entry, qr{^CVE-\d{4,}-\d{4}$}, 'format of CVE ID is correct' );
 }
 
-is_deeply( $cve_id_list, ['CVE-2010-5071'], 'Correct list of CVE IDs' )
+is_deeply(
+    $cve_id_list,
+    [ 'CVE-2002-2435', 'CVE-2010-5071', ],
+    'Correct list of CVE IDs'
+    )
+
     or diag Data::Dumper::Dumper($cve_id_list);
 
 my $entry = $q->cve( cve_id => $cve_id_list->[0] );
