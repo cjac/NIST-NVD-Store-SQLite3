@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 20;
+use Test::More tests => 21;
 use Test::File;
 use File::MMagic;
 use File::LibMagic;
@@ -82,7 +82,7 @@ my ($dev,  $ino,   $mode,  $nlink, $uid,     $gid, $rdev,
     $size, $atime, $mtime, $ctime, $blksize, $blocks
 ) = stat($db_file);
 
-like( $mtime, /^\d+$/, 'mtime is numeric' );
+like( $mtime, qr/^\d+$/, 'mtime is numeric' ) or diag "mtime: [$mtime]";
 
 my $nowish = time();
 
