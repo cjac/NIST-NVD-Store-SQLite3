@@ -37,7 +37,6 @@ my $result = GetOptions(
 use NIST::NVD::Update;
 
 $nvd ||= 'nvdcve-2.0-recent.xml';
-$cwe ||= 'cwec_v2.1.xml';
 
 $store ||= 'DB_File';
 
@@ -94,18 +93,21 @@ $NVD_Updater->put_nvd_entries($nvd_entries);
 
 print " Done.\n";
 
-print "Processing CWE file...";
+my $cwe_data;
 
-my $cwe_data = process_cwe_file($cwe);
+if( -f $cwe ){
+	print "Processing CWE file...";
 
-print "\nDone processing CWE file.\n";
+	$cwe_data = process_cwe_file($cwe);
 
-printf( "read \%i cwe Views\n",      int keys $cwe_data->{View} );
-printf( "read \%i cwe Categories\n", int keys $cwe_data->{Category} );
-printf( "read \%i cwe Weaknesses\n", int keys $cwe_data->{Weakness} );
+	print "\nDone processing CWE file.\n";
 
-#printf( "read \%i cwe Compound Elements\n",
-#    int keys $cwe_data->{Compound_Element} );
+
+	printf( "read \%i cwe Categories\n", int keys $cwe_data->{Category} );
+	printf( "read \%i cwe Weaknesses\n", int keys $cwe_data->{Weakness} );
+	printf( "read \%i cwe Views\n",      int keys $cwe_data->{View} );
+
+}
 
 print "Writing CPE index to disk...";
 
@@ -113,24 +115,27 @@ $NVD_Updater->put_cve_idx_cpe( \%vuln_software );
 
 print "Done.\n";
 
-print "Writing CWE data to disk...";
+if( -f $cwe ){
 
-$NVD_Updater->put_cwe_data($cwe_data);
+	print "Writing CWE data to disk...";
 
-print " Done.\n";
+	$NVD_Updater->put_cwe_data($cwe_data);
 
-print "Writing CWE index to disk...";
+	print " Done.\n";
 
-$NVD_Updater->put_cwe_idx_cve($nvd_entries);
-$NVD_Updater->put_cwe_idx_cpe( \%weaknesses );
+	print "Writing CWE index to disk...";
 
-print "Done.\n";
+	$NVD_Updater->put_cwe_idx_cve($nvd_entries);
+	$NVD_Updater->put_cwe_idx_cpe( \%weaknesses );
 
-print "Writing websec index to disk...";
+	print "Done.\n";
 
-$NVD_Updater->update_websec_idx_cpe( \%weaknesses );
+	print "Writing websec index to disk...";
 
-print "Done\n";
+	$NVD_Updater->update_websec_idx_cpe( \%weaknesses );
+
+	print "Done\n";
+}
 
 sub process_nvd_file {
 
@@ -581,7 +586,7 @@ sub process_cwe_file {
 
     }
 
-    $NVD_Updater->commit('put_cwe_insert');
+    $NVD_Updater->{store}->_commit('put_cwe_insert');
 
     return $CWE_Entry_HASH;
 }
