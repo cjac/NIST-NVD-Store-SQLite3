@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 11;
+use Test::More tests => 15;
 use FindBin qw($Bin);
 use Data::Dumper;
 
@@ -62,16 +62,17 @@ my $cvss = $entry->{'vuln:cvss'};
 is_deeply(
     $cvss,
     {   'cvss:base_metrics' => {
-            'cvss:confidentiality-impact' => 'PARTIAL',
-            'cvss:score'                  => '6.4',
+            'cvss:confidentiality-impact' => 'NONE',
+            'cvss:score'                  => '5.0',
             'cvss:authentication'         => 'NONE',
             'cvss:access-vector'          => 'NETWORK',
             'cvss:source'                 => 'http://nvd.nist.gov',
-            'cvss:generated-on-datetime'  => '2011-12-08T10:35:00.000-05:00',
+            'cvss:generated-on-datetime'  => '2011-12-08T10:11:00.000-05:00',
             'cvss:availability-impact'    => 'NONE',
             'cvss:integrity-impact'       => 'PARTIAL',
             'cvss:access-complexity'      => 'LOW'
-        }
+            }
+
     },
     'extracting cvss worked'
 ) or diag Data::Dumper::Dumper($cvss);
