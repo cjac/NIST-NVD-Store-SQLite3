@@ -4,6 +4,7 @@ MANIFEST.SKIP
 ignore.txt
 Makefile.PL
 README
+TODO
 lib/NIST/NVD/Store/SQLite3.pm
 t/00-load.t
 t/01-load-nvdcve.t
