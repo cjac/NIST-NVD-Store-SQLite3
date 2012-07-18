@@ -1,5 +1,8 @@
 package NIST::NVD::Store::SQLite3;
 
+use strict;
+use warnings;
+
 use NIST::NVD::Store::Base;
 
 use base qw{NIST::NVD::Store::Base};
@@ -7,9 +10,6 @@ use base qw{NIST::NVD::Store::Base};
 push @ISA, qw{NIST::NVD::Store::Base};
 
 use Carp(qw(carp confess cluck));
-
-use warnings;
-use strict;
 
 use Storable qw(nfreeze thaw);
 use DBI;
