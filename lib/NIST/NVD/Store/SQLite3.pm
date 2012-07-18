@@ -7,6 +7,7 @@ use NIST::NVD::Store::Base;
 
 use base qw{NIST::NVD::Store::Base};
 
+our @ISA;
 push @ISA, qw{NIST::NVD::Store::Base};
 
 use Carp(qw(carp confess cluck));
