@@ -22,11 +22,11 @@ NIST::NVD::Store::SQLite3 - SQLite3 store for NIST::NVD
 
 =head1 VERSION
 
-Version 1.00.00
+Version 1.01.00
 
 =cut
 
-our $VERSION = '1.00.00';
+our $VERSION = '1.01.00';
 
 my %query = (
     cpe_create => qq{
