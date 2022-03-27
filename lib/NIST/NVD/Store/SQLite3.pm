@@ -1124,8 +1124,10 @@ L<http://search.cpan.org/dist/NIST-NVD-Store-SQLite3/>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2012 F5 Networks, Inc.
-Copyright 2013 Washington State Guard Association
+Copyright (C) 2012 C.J. Adams-Collier
+Copyright (C) 2012 F5 Networks, Inc
+Copyright (C) 2013 Washington State Guard Association
+Copyright (C) 2022 Google, LLC
 
 CVE(r) and CWE(tm) are marks of The MITRE Corporation and used here with
 permission.  The information in CVE and CWE are copyright of The MITRE
