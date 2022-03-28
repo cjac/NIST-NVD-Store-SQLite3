@@ -32,12 +32,12 @@ my $convert_script
 
 ok( -f $convert_script, '$convert_script is a file' );
 
-my $nvd_source_file = File::Spec->catfile( $data_dir, 'nvdcve-2.0-test.xml' );
-my $cwe_source_file = File::Spec->catfile( $data_dir, 'cwec_v2.1.xml' );
+my $nvd_source_file = File::Spec->catfile( $data_dir, 'nvdcve-1.1-test.json.gz' );
+#my $cwe_source_file = File::Spec->catfile( $data_dir, 'cwec_v2.1.xml' );
 
 ok( -f $nvd_source_file, "[$nvd_source_file] is a file" );
 
-my $db_file = File::Spec->catfile( $data_dir, 'nvdcve-2.0.db' );
+my $db_file = File::Spec->catfile( $data_dir, 'nvdcve-1.1.db' );
 
 unlink($db_file) if -f $db_file;
 
@@ -54,7 +54,8 @@ chdir($data_dir);
 $ENV{PERL5LIB} = "$ENV{PERL5LIB}:" . File::Spec->catfile( $dist_dir, 'blib', 'lib' );
 
 my $cmd
-    = "$convert_script --nvd $nvd_source_file --cwe $cwe_source_file --store SQLite3 2>&1";
+  = "$convert_script --nvd $nvd_source_file --store SQLite3 2>&1";
+#    = "$convert_script --nvd $nvd_source_file --cwe $cwe_source_file --store SQLite3 2>&1";
 diag "running $cmd";
 my $start_run = time();
 my $output    = `$cmd`;
@@ -122,5 +123,4 @@ $q = NIST::NVD::Query->new( store => 'SQLite3', database => $db_file, );
 is( ref $q, 'NIST::NVD::Query',
     'constructor returned an object of correct class' );
 
-chdir($test_dir);
 

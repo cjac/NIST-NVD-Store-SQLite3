@@ -266,7 +266,9 @@ sub _connect_db {
 
 =cut
 
-my $cpe_urn_re = qr{^(cpe:/(.)(:[^:]+){2,6})$};
+# wfn:[part="o",vendor="microsoft",product="windows_vista",version="6\.0", update="sp1",edition=NA,language=NA,sw_edition="home_premium", target_sw=NA,target_hw="x64",other=NA]
+#cpe:2.3:o:microsoft:windows_vista:6.0:sp1:-:-:home_premium:-:x64:-
+my $cpe_urn_re = qr{^(cpe(?::([^:]+)){5,12})$};
 
 sub get_cve_for_cpe {
     my ( $self, %args ) = @_;
@@ -280,8 +282,18 @@ sub get_cve_for_cpe {
         $cpe_pkey_id = $cpe;
     }
     else {
-        ( my ( $cpe, @parts ) ) = ( $args{cpe} =~ $cpe_urn_re );
-        $cpe_pkey_id = $self->_get_cpe_id($cpe);
+      my @parts;
+      my($cpe_literal,$cpe_ver,$part,$vendor,$product,$version,$update,$edition,
+	 $language,$sw_edition,$target_sw,$target_hw,$other) = @parts =
+	   split(':', $args{cpe});
+
+      if( $cpe_ver eq '2.3' ){
+      }elsif($parts[1] =~ m:^/(.):){
+	($cpe_ver,$part,$vendor,$product,$version,$update,$edition,
+	 $language,$sw_edition,$target_sw,$target_hw,$other
+	) = ('2.3', $1, @parts[2..$#parts]);
+      }
+      $cpe_pkey_id = $self->_get_cpe_id($cpe);
     }
 
     $sth{cve_for_cpe_select}->execute($cpe_pkey_id);
@@ -289,7 +301,7 @@ sub get_cve_for_cpe {
     my $cve_id = [];
 
     while ( my $row = $sth{cve_for_cpe_select}->fetchrow_hashref() ) {
-        push( @$cve_id, $row->{'cve_id'} );
+      push( @$cve_id, $row->{'cve_id'} );
     }
 
     return $cve_id;
@@ -387,9 +399,7 @@ sub _get_cwe_id {
     }
 
     $cwe_id_cache{$cwe_id} = [ $row->{qw{id cwe_id}} ];
-    \
-
-      return ( $row->{qw{id cwe_id}} );
+    return ( $row->{qw{id cwe_id}} );
 }
 
 sub _get_cpe_id {
@@ -408,7 +418,6 @@ sub _get_cpe_id {
           if ( $rows != 0 );
         $self->{cpe_map}->{$cpe_urn} = $row->{id};
     }
-
     return $self->{cpe_map}->{$cpe_urn};
 }
 

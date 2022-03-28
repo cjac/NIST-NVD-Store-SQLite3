@@ -1,13 +1,12 @@
 #!/usr/bin/perl -w
 use strict;
 use Data::Dumper;
-use XML::XPath;
-use XML::XPath::XMLParser;
+use JSON::XS;
 use Storable qw(nfreeze thaw);
-use IO::Compress::Bzip2 qw(bzip2 $Bzip2Error);
-use IO::Uncompress::Bunzip2 qw(bunzip2 $Bunzip2Error);
+use IO::Compress::Gzip qw(gzip $GzipError);
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use Carp;
-
+use NIST::NVD::Update;
 use Getopt::Long;
 
 my $decimal_re = qr/^\d+$/;
@@ -34,20 +33,72 @@ my $result = GetOptions(
     "store=s" => \$store,
 );
 
-use NIST::NVD::Update;
+$nvd ||= 'nvdcve-1.1-recent.json.gz';
 
-$nvd ||= 'nvdcve-2.0-recent.xml';
-
-$store ||= 'DB_File';
+$store ||= 'SQLite3';
 
 print STDERR "using store [$store]\n";
 
-my $db_file = 'nvdcve-2.0.db';
+my $db_file = 'nvdcve-1.1.db';
 
 my $NVD_Updater = NIST::NVD::Update->new(
     store    => $store,
     database => $db_file,
 );
+
+my $coder = JSON::XS->new->ascii->pretty->allow_nonref;
+
+my $decompressed = '';
+gunzip $nvd => \$decompressed or die "gunzip failed: $GunzipError\n";
+
+my $cve_recent = $coder->decode ($decompressed);
+
+print("CVE_data_numberOfCVEs: $cve_recent->{CVE_data_numberOfCVEs}",$/);
+if( scalar @{$cve_recent->{CVE_Items}} == $cve_recent->{CVE_data_numberOfCVEs} ){
+  print("received the advertised number of CVE items$/");
+}else{
+  print('$cve_recent->{CVE_data_numberOfCVEs} != scalar keys %{$cve_recent->{CVE_Items}}',$/);
+}
+
+my %vuln_software;
+my $NVD_Entry_HASH = {};
+foreach my $item (@{$cve_recent->{CVE_Items}}){
+  my $cve_id = $item->{cve}->{CVE_data_meta}->{ID};
+  $NVD_Entry_HASH->{$cve_id} = $item;
+
+  if( exists( $item->{configurations}->{nodes} ) ){
+    foreach my $node ( @{$item->{configurations}->{nodes}} ){
+      if( exists $node->{cpe_match} ){
+	foreach my $cpe_match ( @{$node->{cpe_match}} ){
+	  my $cpe23Uri = $cpe_match->{cpe23Uri};
+	  push( @{ $vuln_software{$cpe23Uri} }, $cve_id )
+	    if $cpe_match->{vulnerable};
+	}
+      }
+    }
+  }
+}
+
+print "Writing CPE URNs to disk...";
+
+$NVD_Updater->put_cpe([ keys %vuln_software ]);
+
+print "Done.\n";
+
+print "Writing NVD entries to disk...";
+
+$NVD_Updater->put_nvd_entries($NVD_Entry_HASH);
+
+print " Done.\n";
+
+print "Writing CPE index to disk...";
+
+$NVD_Updater->put_cve_idx_cpe( \%vuln_software );
+
+print "Done.\n";
+
+
+exit;
 
 my %important_fields;
 
@@ -55,8 +106,9 @@ $important_fields{$_}++ foreach $NVD_Updater->{store}->_important_fields();
 
 my $cwe_ids = $NVD_Updater->get_cwe_ids();
 
-my %vuln_software;
+
 my %weaknesses;
+
 
 my %close_regex = (
     Views             => qr:</Views>:,
@@ -126,6 +178,7 @@ if( -f $cwe ){
 	print "Writing CWE index to disk...";
 
 	$NVD_Updater->put_cwe_idx_cve($nvd_entries);
+
 	$NVD_Updater->put_cwe_idx_cpe( \%weaknesses );
 
 	print "Done.\n";
