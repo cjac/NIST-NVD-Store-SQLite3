@@ -2,14 +2,14 @@
 
 use strict;
 use warnings;
-use Test::More tests => 15;
+use Test::More tests => 18;
 use FindBin qw($Bin);
 use Data::Dumper;
 
 ( my $test_dir ) = $Bin =~ m:^(.*?/t)$:;
 
 ( my $data_dir ) = "$test_dir/data"          =~ m:^(.*/data)$:;
-( my $db_file )  = "$data_dir/nvdcve-2.0.db" =~ /^(.*db)$/;
+( my $db_file )  = "$data_dir/nvdcve-1.1.db" =~ /^(.*db)$/;
 
 BEGIN {
     use_ok('NIST::NVD::Query') || print "Bail out!";
@@ -28,9 +28,18 @@ ok( !$@, "no error" ) or diag $@;
 is( ref $q, 'NIST::NVD::Query',
     'constructor returned an object of correct class' );
 
+is(ref $q->{store}, 'NIST::NVD::Store::SQLite3',
+   'storage class configured correctly')
+  or diag('storage class: ['.ref( $q->{store} ).']');
+
 my $cve_id_list;
 
-my $cpe_urn = 'cpe:/a:opera:opera_browser:7.0:beta1_v2';
+my $cpe_urn = 'cpe:2.3:a:bigantsoft:bigant_server:5.6.06:*:*:*:*:*:*:*';
+
+my $cpe_pkey_id = $q->{store}->_get_cpe_id($cpe_urn);
+ok( $cpe_pkey_id, 'return value is defined' );
+
+like( $cpe_pkey_id, qr/\d+/, 'cpe primary key is numeric' );
 
 $cve_id_list = $q->cve_for_cpe( cpe => $cpe_urn );
 
@@ -40,14 +49,20 @@ is( int(@$cve_id_list), 7,
     "correct number of CVEs returned for this CPE: [$cpe_urn]" );
 
 foreach my $cve_entry (@$cve_id_list) {
-    like( $cve_entry, qr{^CVE-\d{4,}-\d{4}$}, 'format of CVE ID is correct' )
+    like( $cve_entry, qr{^CVE-\d{4,}-\d{4,10}$}, 'format of CVE ID is correct' )
         or diag $cve_entry;
 }
 
 is_deeply(
     $cve_id_list,
-    [   'CVE-2011-4681', 'CVE-2011-4682', 'CVE-2011-4683', 'CVE-2011-4684',
-        'CVE-2011-4685', 'CVE-2011-4686', 'CVE-2011-4687',
+    [
+     'CVE-2022-23345',
+     'CVE-2022-23346',
+     'CVE-2022-23347',
+     'CVE-2022-23348',
+     'CVE-2022-23349',
+     'CVE-2022-23350',
+     'CVE-2022-23352'
     ],
     'Correct list of CVE IDs'
 ) or diag Data::Dumper::Dumper($cve_id_list);
