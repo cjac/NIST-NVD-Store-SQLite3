@@ -94,5 +94,5 @@ is_deeply(
            'exploitabilityScore' => '3.9',
            'impactScore' => '3.6'
           },
-  'extracting cvss worked'
+  'extracting baseMetricV3 worked'
 ) or diag Data::Dumper::Dumper $entry;
