@@ -72,23 +72,27 @@ my $entry = $q->cve( cve_id => $cve_id_list->[0] );
 is( ref $entry, 'HASH', 'CVE entry is a HASH ref' )
     or diag Data::Dumper::Dumper($entry);
 
-my $cvss = $entry->{'vuln:cvss'};
+my $baseMetricV3 = $entry->{impact}->{baseMetricV3};
 
 is_deeply(
-    $cvss,
-    {   'cvss:base_metrics' => {
-            'cvss:confidentiality-impact' => 'NONE',
-            'cvss:score'                  => '5.0',
-            'cvss:authentication'         => 'NONE',
-            'cvss:access-vector'          => 'NETWORK',
-            'cvss:source'                 => 'http://nvd.nist.gov',
-            'cvss:generated-on-datetime'  => '2011-12-08T10:11:00.000-05:00',
-            'cvss:availability-impact'    => 'NONE',
-            'cvss:integrity-impact'       => 'PARTIAL',
-            'cvss:access-complexity'      => 'LOW'
-            }
-
-    },
-    'extracting cvss worked'
-) or diag Data::Dumper::Dumper($cvss);
-
+    $baseMetricV3,
+          {
+           'cvssV3' => {
+                        'confidentialityImpact' => 'HIGH',
+                        'version' => '3.1',
+                        'vectorString' => 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N',
+                        'userInteraction' => 'NONE',
+                        'scope' => 'UNCHANGED',
+                        'privilegesRequired' => 'NONE',
+                        'baseScore' => '7.5',
+                        'availabilityImpact' => 'NONE',
+                        'attackComplexity' => 'LOW',
+                        'integrityImpact' => 'NONE',
+                        'attackVector' => 'NETWORK',
+                        'baseSeverity' => 'HIGH'
+                       },
+           'exploitabilityScore' => '3.9',
+           'impactScore' => '3.6'
+          },
+  'extracting cvss worked'
+) or diag Data::Dumper::Dumper $entry;
