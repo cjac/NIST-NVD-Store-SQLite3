@@ -406,8 +406,9 @@ sub _get_cpe_id {
     my ( $self, $cpe_urn ) = @_;
 
     return $self->{cpe_map}->{$cpe_urn}
-      if ( exists $self->{cpe_map}->{$cpe_urn} );
-
+      if ( exists $self->{cpe_map}->{$cpe_urn} &&
+           $self->{cpe_map}->{$cpe_urn}
+         );
     $sth{get_cpe_id_select}->execute($cpe_urn);
 
     # TODO: Assert that this query only returns one result
@@ -590,7 +591,7 @@ sub put_cve_idx_cpe {
     while ( my ( $cpe_urn, $cve_id ) = ( each %$vuln_software ) ) {
         my $cpe_pkey_id = $self->_get_cpe_id($cpe_urn);
 
-        foreach my $id (@$cve_id) {
+        foreach my $id (keys %$cve_id) {
             my ( $cve_pkey, $cve_friendly ) = $self->_get_cve_id($id);
             next unless $cve_pkey;
             next if $uniq_cve_idx_cpe{$cpe_pkey_id}->{$cve_pkey}++;
@@ -818,7 +819,8 @@ sub put_nvd_entries {
     my @insert_args;
     my @update_args;
 
-    while ( my ( $cve_id, $orig_entry ) = ( each %$entries ) ) {
+    foreach my $orig_entry ( @$entries ){
+      my $cve_id = $orig_entry->{cve}->{CVE_data_meta}->{ID};
         my $entry = {};
 
         foreach my $preserve ( $self->_important_fields() ) {
@@ -1072,15 +1074,11 @@ sub put_cwe_data {
 
 sub _important_fields {
     return qw(
-      vuln:cve-id
-      vuln:cvss
-      vuln:cwe
-      vuln:discovered-datetime
-      vuln:published-datetime
-      vuln:discovered-datetime
-      vuln:last-modified-datetime
-      vuln:security-protection
-      vuln:vulnerable-software-list
+               lastModifiedDate
+               publishedDate
+               configurations
+               impact
+               cve
     );
 
 }
